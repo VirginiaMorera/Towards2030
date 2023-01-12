@@ -1,0 +1,253 @@
+---
+title: "Badger data"
+author: "Virginia Morera-Pujol"
+date: "18/05/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers")
+setwd("C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers")
+```
+
+"C:\Users\morer\Dropbox\Virginia_post_UB\05_Badgers\raw_data"
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r packages}
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(viridis)
+library(raster)
+```
+
+## Load and clean sett data
+
+```{r load sett, message = FALSE}
+sett <- read_csv("raw_data/forR_SETT_SUMMARY_111121.csv")
+sett_spatial <- read_sf("raw_data/Sett_Summary_111121.shp")
+ireland <- st_read("raw_data/ireland_ITM.shp")
+
+# remove unnecessary columns
+sett_clean <- sett %>% 
+  dplyr::select(-DVO_CODE, -SPECIAL_SETT, -DISTANCE, -RESTRAINTS, -SETT2_OPENINGS_USED,
+                -SETT2_RESTRAINTS, -SETT3_OPENINGS_USED, -SETT3_RESTRAINTS, 
+                -SETT_LOCATION_ADDED, -LANDS_RENTED, -OTHER_LOCATION) %>% 
+  rename(EVIDENCE_OF_INTERFERENCE = EVIDENCCE_OF_INTERFERENCE) %>% 
+  ## filter "legacy" obs that Philip told us to disregard
+  filter(ACTIVE <= 1) %>% 
+  filter(EVIDENCE_OF_INTERFERENCE <= 1) %>% 
+  # check how many badgers have at least one habitat
+  rowwise() %>% mutate(AnyHabitat = sum(c_across((GREENFIELD_SITE:SCRUB)))) %>% 
+  # turn main sett into factor
+  mutate(MAIN_SETT = if_else(MAIN_SETT == 1, "Yes", "No"), 
+         MAIN_SETT = as.factor(MAIN_SETT), 
+         # convert other sett type into what they mean
+         OTHERSETTTYPE = recode(OTHERSETTTYPE, '0' = "NA", '1' = "Former", '2' = "Disused", '3' = "Dormant", 
+                                '4' = "Annexed", '5' = "Subsidiary", '6' = "Other"), 
+         OTHERSETTTYPE = as.factor(OTHERSETTTYPE), 
+         # convert activity into a factor
+         ACTIVE = if_else(ACTIVE == 1, "Yes", "No"), 
+         ACTIVE = as.factor(ACTIVE), 
+         # turn date into date format
+         DATE_OF_FIELD_VISIT = date(DATE_OF_FIELD_VISIT), 
+         SETT_ID = as.numeric(SETT_ID))
+
+
+sett_spatial <- sett_spatial %>% 
+  dplyr::select(SETT_ID, BADGERS) %>% 
+  mutate(SETT_ID = as.numeric(SETT_ID), 
+         BADGERS = as.numeric(BADGERS))
+
+
+sett_all <- sett_clean %>% 
+  inner_join(sett_spatial) %>% 
+  st_as_sf(sf_column_name = "geometry")
+
+saveRDS(sett_all, file = "sett_all.RDS")
+```
+
+
+## Visualise sett data
+
+```{r vis sett, message = FALSE, fig.height = 11*1.2, fig.width = 11}
+ggplot(sett_all) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
+  geom_sf(aes(col = MAIN_SETT), alpha = 0.5, size = 0.75) + 
+  scale_color_viridis_d() + 
+  labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
+  theme_bw() + 
+  guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
+
+ggplot(sett_all) +
+  geom_sf(aes(col = ACTIVE), alpha = 0.5, size = 1) + 
+  theme_bw()
+
+sett_all %>% 
+  filter(BADGERS > 0) %>% 
+  ggplot +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
+  geom_sf(data = sett_all, col = "lightgray", size = 1) +
+  geom_sf(aes(col = BADGERS)) +  
+  scale_colour_viridis(option = "C") + 
+  labs(x = "Longitude", y = "Latitude", col = "Number of badgers") + 
+  theme_bw() + 
+  guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
+
+
+sett_all %>% 
+  pivot_longer(GREENFIELD_SITE:SCRUB, names_to = "Habitat_type", values_to = "Habitat_presence") %>% 
+  # filter(Habitat_presence == 1) %>% 
+  ggplot +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
+  geom_sf(aes(col = as.factor(Habitat_presence)), alpha = 0.5, size = 0.7) + 
+  facet_wrap(~Habitat_type) +
+  labs(x = "Longitude", y = "Latitude") + 
+  theme_bw() 
+
+```
+
+
+## Load and clean badger individual data 
+```{r load badger, message = FALSE}
+badgers <- read_csv("raw_data/forR_captured_badgers.csv")
+badgers_vacc <- read_csv("raw_data/forR_vacc_badgers_names_removed.csv")
+
+
+
+badgers_clean <- badgers %>% 
+  # select columns to retain
+  dplyr::select(SETT_ID, BADGER_ID, DATE_CAUGHT, DATE_ENTERED, SEX) %>% 
+  # clean up, date format, etc
+  mutate(DATE_CAUGHT = parse_date(DATE_CAUGHT, "%b %d, %Y %H:%M:%S %p"), 
+         DATE_ENTERED = parse_date(DATE_ENTERED, "%b %d, %Y %H:%M:%S %p"), 
+         SEX = factor(SEX, levels = c("Female", "Male")), 
+         month_entered = month(DATE_ENTERED), 
+         year_entered = year(DATE_ENTERED), 
+         month_captured = month(DATE_CAUGHT), 
+         year_captured = year(DATE_CAUGHT), 
+         monthday_ent = paste(month_entered, year_entered, sep = "-"), 
+         monthday_ent = parse_date(monthday_ent, "%m-%Y"), 
+         monthday_capt = paste(month_captured, year_captured, sep = "-"), 
+         monthday_capt = parse_date(monthday_capt, "%m-%Y"), 
+         BADGER_ACTION = "REMOVED", 
+         VACCINATION = "N", 
+         PROGRAMME = "Culling")
+
+badgers_vacc_clean <- badgers_vacc %>% 
+  dplyr::select(BADGER_ID, SETT_ID, SEX, AGE, VACCINATION, WEIGHT,
+                ECTOPARASITES, 
+                ECTOPARASITE_TYPE, BADGER_ACTION, DATE_ENTERED, 
+                DATE_CAUGHT = DATE_CAPTURE) %>% 
+  mutate(DATE_CAUGHT = parse_date(DATE_CAUGHT, "%b %d, %Y %H:%M:%S %p"), 
+         DATE_ENTERED = parse_date(DATE_ENTERED, "%b %d, %Y %H:%M:%S %p"),
+         month_entered = month(DATE_ENTERED), 
+         year_entered = year(DATE_ENTERED), 
+         month_captured = month(DATE_CAUGHT), 
+         year_captured = year(DATE_CAUGHT), 
+         monthday_ent = paste(month_entered, year_entered, sep = "-"), 
+         monthday_ent = parse_date(monthday_ent, "%m-%Y"), 
+         monthday_capt = paste(month_captured, year_captured, sep = "-"), 
+         monthday_capt = parse_date(monthday_capt, "%m-%Y"),  
+         SEX = recode(SEX, 'F' = "Female", 'FEMALE' = "Female", 
+                      'M' = "Male", 'MALE' = "Male", 
+                      'X' = NA_character_), 
+         AGE = recode(AGE, 'adult' = "Adult", 'ADULT' = "Adult",'CUB' = "Cub", 
+                      'JUVENILE' = "Juvenile", 'OLD' = "Old", 
+                      '9' = NA_character_), 
+         SETT_ID = as.numeric(SETT_ID), 
+         PROGRAMME = "Vaccination")
+```  
+
+
+## Visualize badger ind data 
+
+```{r viz badger, mesage = FALSE,fig.width=12, fig.height=8}
+badgers_all <- bind_rows(badgers_clean, badgers_vacc_clean)
+
+ggplot(badgers_all) + 
+  geom_bar(aes(x = monthday_capt, fill = as.factor(month_captured)), 
+           stat = "count") + 
+  scale_x_date(date_breaks = "1 year",date_labels = "%Y") + 
+  labs(x = "Date", y = "Number of badgers", fill = "Month") + 
+  theme_bw()
+
+ggplot(badgers_all) + 
+  geom_bar(aes(x = month_captured, fill = as.factor(month_captured)), 
+           stat = "count") + 
+  theme_bw() + 
+  scale_x_continuous(breaks=seq(1, 12, 1), 
+                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                "Jul", "Aug", 
+                                "Sep", "Oct", "Nov", "Dec")) + 
+  labs(x = "Month", y = "Number of badgers", fill = "Month") 
+
+badgers_all %>% 
+  mutate(Parasite_data = if_else(is.na(ECTOPARASITE_TYPE), "No", 
+                                 if_else(ECTOPARASITE_TYPE == "N/A", "No", "Yes"))) %>% 
+  ggplot + 
+  geom_bar(aes(x = year_entered, fill = Parasite_data), stat = "count") + 
+  theme_bw() + 
+  scale_x_continuous(breaks=seq(2007, 2022, 1)) +
+  labs(x = "Year", y = "Number of badgers", fill = "Ectoparasite type collected") + 
+  theme(legend.position="bottom")
+
+ggplot(badgers_all) + 
+  geom_bar(aes(x = year_entered, fill = BADGER_ACTION), stat = "count") + 
+  theme_bw() + 
+  scale_x_continuous(breaks=seq(2007, 2022, 1)) +
+  labs(x = "Year", y = "Number of badgers", fill = "Badger's destiny") 
+  
+```
+
+
+## Merge badger and sett data
+
+```{r}
+sett <- sett_all %>% 
+  dplyr::select(SETT_ID)
+
+badgers_loc <- left_join(badgers_all, sett)  %>% 
+  st_as_sf(sf_column_name = "geometry")
+
+badgers_sum <- badgers_loc %>% 
+  group_by(SETT_ID, DATE_CAUGHT) %>% 
+  summarise(group_size = n(), 
+            mean_weight = mean(WEIGHT, na.rm = T)) %>% 
+  filter(!is.na(DATE_CAUGHT))
+
+
+sett_all <- left_join(sett_all, badgers_sum)
+
+sett_all %>% 
+  filter(group_size >0) %>% 
+  ggplot +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
+  # geom_sf(col = "lightgray", size = 1) +
+  geom_sf(aes(col = group_size), alpha = 0.7) +  
+  scale_colour_viridis(option = "C") + 
+  labs(x = "Longitude", y = "Latitude", col = "Number of badgers") + 
+  theme_bw() + 
+  guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
+
+
+badgers_loc %>% 
+  filter(!is.na(ECTOPARASITE_TYPE)) %>% 
+  filter(ECTOPARASITE_TYPE != "N/A") %>% 
+  # filter(mean_weight < 20 & mean_weight > 0) %>% 
+  ggplot +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
+  # geom_sf(col = "lightgray", size = 1) +
+  geom_sf(aes(col = ECTOPARASITE_TYPE), alpha = 0.5) +  
+  labs(x = "Longitude", y = "Latitude", col = "Ectoparasite type") + 
+  theme_bw() + 
+  guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
+
+
+```
+
