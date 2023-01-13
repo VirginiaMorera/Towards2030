@@ -42,6 +42,7 @@ vignettes/*.pdf
 raw_data/
 Covars/
 Data/
+Outputs/
 
 
 
