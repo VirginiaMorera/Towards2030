@@ -22,6 +22,7 @@ sett_clean <- sett %>%
   filter(EVIDENCE_OF_INTERFERENCE <= 1) %>% 
   # check how many badgers have at least one habitat
   rowwise() %>% mutate(AnyHabitat = sum(c_across((GREENFIELD_SITE:SCRUB)))) %>% 
+  ungroup() %>% 
   # turn main sett into factor
   mutate(MAIN_SETT = if_else(MAIN_SETT == 1, "Yes", "No"), 
          MAIN_SETT = as.factor(MAIN_SETT), 
@@ -43,8 +44,13 @@ sett_clean <- sett %>%
          OTHERSETTTYPE = na_if(OTHERSETTTYPE, "NA")) %>% 
   # turn into spatial 
   st_as_sf(coords = c("X_COORDINATE", "Y_COORDINATE"), crs = st_crs(sett_spatial)) %>% 
-  st_transform(st_crs(ireland))
-  
+  st_transform(st_crs(ireland)) %>% 
+  mutate(x_coordinate = sf::st_coordinates(.)[,1],
+         y_coordinate = sf::st_coordinates(.)[,2]) %>% 
+  st_set_geometry(NULL)
+
+attributes(sett_clean$x_coordinate) <- NULL
+attributes(sett_clean$y_coordinate) <- NULL
 
 
 sett_spatial_clean <- sett_spatial %>% 
@@ -72,13 +78,29 @@ sett_spatial_clean <- sett_spatial %>%
          MONTH = month(VISITDATE, label = TRUE)) %>% 
   # rename visit date to match the other dataset
   rename(DATE_OF_FIELD_VISIT = VISITDATE) %>% 
+  data.frame() %>%  
   # turn into spatial again
   st_as_sf(sf_column_name = "geometry") %>% 
   st_transform(st_crs(ireland)) %>% 
-  st_zm
+  st_zm %>% 
+  mutate(x_coordinate = sf::st_coordinates(.)[,1],
+         y_coordinate = sf::st_coordinates(.)[,2]) %>% 
+  st_set_geometry(NULL)
 
-sett_all <- bind_rows(sett_clean, sett_spatial_clean)
+attributes(sett_spatial_clean$x_coordinate) <- NULL
+attributes(sett_spatial_clean$y_coordinate) <- NULL
 
+## create unique sett visit ID to merge, in case there are repeated obs in both DS
+## taking into account that half the spatial ds rows have no date of visit, still we 
+## could be having repeated obs 
+
+
+sett_all <- full_join(sett_clean, sett_spatial_clean) %>% 
+  st_as_sf(coords = c("x_coordinate", "y_coordinate"), crs = st_crs(ireland))
+
+
+
+# table main sett vs other sett type
 sett_all %>% 
   st_set_geometry(NULL) %>%
   group_by(OTHERSETTTYPE, MAIN_SETT) %>% 
@@ -107,7 +129,7 @@ ggplot(sett_all) +
   theme_bw() + 
   ggtitle("Sett visits by month")
 
-# other characteristics
+# other characteristics (only from the non-spatial data (except restraints))
 
 sett_all%>% 
   # filter(OPENINGS < 40) %>%
@@ -167,7 +189,9 @@ sett_all %>%
 # some areas have not been sampled. Are there no setts? or no farms? 
 
 ## active setts 
-ggplot(sett_all) +
+sett_all %>% 
+  distinct(SETT_ID, .keep_all = T) %>% 
+  ggplot + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
   geom_sf(aes(col = ACTIVE), alpha = 0.5, size = 1) + 
   scale_color_viridis_d() + 
@@ -202,8 +226,6 @@ sett_all %>%
 
 
 ## number of badgers
-
-
 ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray") +  
@@ -216,15 +238,15 @@ ggplot(sett_all) +
 
 
 ## habitats
-# sett_all %>% 
-#   pivot_longer(GREENFIELD_SITE:SCRUB, names_to = "Habitat_type", values_to = "Habitat_presence") %>% 
-#   filter(!is.na(Habitat_presence)) %>%
-#   ggplot +
-#   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
-#   geom_sf(aes(col = as.factor(Habitat_presence)), alpha = 0.7, size = 0.5) + 
-#   facet_wrap(~Habitat_type) +
-#   labs(x = "Longitude", y = "Latitude", col = "Habitat present") + 
-#   theme_bw() 
+sett_all %>%
+  pivot_longer(GREENFIELD_SITE:SCRUB, names_to = "Habitat_type", values_to = "Habitat_presence") %>%
+  filter(!is.na(Habitat_presence)) %>%
+  ggplot +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(aes(col = as.factor(Habitat_presence)), alpha = 0.7, size = 0.5) +
+  facet_wrap(~Habitat_type) +
+  labs(x = "Longitude", y = "Latitude", col = "Habitat present") +
+  theme_bw()
 
 # ggsave(filename = "Outputs/habitat_plot.png", scale = 2)
 
