@@ -12,6 +12,7 @@ ireland <- st_read("Data/ireland_ITM.shp")
 
 # remove unnecessary columns and clean
 sett_clean <- sett %>% 
+  # remove unnecessary or empty variables
   dplyr::select(-DVO_CODE, -SPECIAL_SETT, -SETT2_OPENINGS_USED,
                 -SETT2_RESTRAINTS, -SETT3_OPENINGS_USED, -SETT3_RESTRAINTS, 
                 -SETT_LOCATION_ADDED, -LANDS_RENTED, -OTHER_LOCATION) %>% 
@@ -25,57 +26,84 @@ sett_clean <- sett %>%
   mutate(MAIN_SETT = if_else(MAIN_SETT == 1, "Yes", "No"), 
          MAIN_SETT = as.factor(MAIN_SETT), 
          # convert other sett type into what they mean
-         OTHERSETTTYPE = recode(OTHERSETTTYPE, '0' = "NA", '1' = "Former", '2' = "Disused", '3' = "Dormant", 
+         OTHERSETTTYPE = recode(OTHERSETTTYPE, '0' = "NA", '1' = "Former", 
+                                '2' = "Disused", '3' = "Dormant", 
                                 '4' = "Annexed", '5' = "Subsidiary", '6' = "Other"), 
          OTHERSETTTYPE = as.factor(OTHERSETTTYPE), 
          # convert activity into a factor
          ACTIVE = if_else(ACTIVE == 1, "Yes", "No"), 
          ACTIVE = as.factor(ACTIVE), 
-         # turn date into date format
+         # turn date into date format, add month and year
          DATE_OF_FIELD_VISIT = dmy(DATE_OF_FIELD_VISIT), 
          YEAR = year(DATE_OF_FIELD_VISIT),
          MONTH = month(DATE_OF_FIELD_VISIT, label = TRUE),
-         SETT_ID = as.numeric(SETT_ID), 
-         OTHERSETTTYPE = na_if(OTHERSETTTYPE, "NA"))
+         # sett id as numeric        
+         SETT_ID = as.numeric(SETT_ID),  
+         # sett all empty OTHERSETTTYPE as NA
+         OTHERSETTTYPE = na_if(OTHERSETTTYPE, "NA")) %>% 
+  # turn into spatial 
+  st_as_sf(coords = c("X_COORDINATE", "Y_COORDINATE"), crs = st_crs(sett_spatial)) %>% 
+  st_transform(st_crs(ireland))
+  
 
 
-sett_spatial <- sett_spatial %>% 
-  dplyr::select(-TOTAL_BADG, -CAPT_BADGE, -VACC_BADGE, -DVO, -X_COORDINA, -Y_COORDINA) %>%
+sett_spatial_clean <- sett_spatial %>% 
+  # remove unnecessary or empty variables
+  dplyr::select(-TOTAL_BADG, -CAPT_BADGE, -VACC_BADGE, -DVO, -X_COORDINA, 
+                -Y_COORDINA, -ID, -SETT_NO) %>%
+  # turn sett id as numeric
   mutate(SETT_ID = as.numeric(SETT_ID), 
-         BADGERS = as.numeric(BADGERS), 
+         # turn number of badgers to numeric       
+         BADGERS = as.numeric(BADGERS),
+         # clean up number of restraints column
          RESTRAINTS = gsub("`", "", RESTRAINTS),
-         RESTRAINTS = as.numeric(RESTRAINTS), 
-         MAIN_SETT = if_else(MAIN_SETT == 1, "Yes", "No"), 
-         MAIN_SETT = as.factor(MAIN_SETT)) %>% 
-  rename(MAIN_SETT_sp = MAIN_SETT, RESTRAINTS_sp = RESTRAINTS, DATE_OF_FIELD_VISIT_sp = VISITDATE)
+         RESTRAINTS = as.numeric(RESTRAINTS),   
+         # turn main sett into factor
+         MAIN_SETT = if_else(MAIN_SETT == 1, "Yes", "No"),
+         MAIN_SETT = as.factor(MAIN_SETT), 
+         # sett id as numeric        
+         SETT_ID = as.numeric(SETT_ID),  
+         # turn date into date format, clean wrong dates, add month and year       
+         YEAR = year(VISITDATE), 
+         VISITDATE = ymd(VISITDATE), 
+         VISITDATE = if_else(YEAR > year(ymd("2022-12-12")), dmy("01-01-1900"), VISITDATE), 
+         VISITDATE = na_if(VISITDATE, dmy("01-01-1900")), 
+         YEAR = year(VISITDATE),
+         MONTH = month(VISITDATE, label = TRUE)) %>% 
+  # rename visit date to match the other dataset
+  rename(DATE_OF_FIELD_VISIT = VISITDATE) %>% 
+  # turn into spatial again
+  st_as_sf(sf_column_name = "geometry") %>% 
+  st_transform(st_crs(ireland)) %>% 
+  st_zm
 
-sett_all <- full_join(sett_clean, sett_spatial)
+sett_all <- bind_rows(sett_clean, sett_spatial_clean)
 
-sett_all <- sett_all %>% 
-  relocate(MAIN_SETT_sp, .after = MAIN_SETT) %>% 
-  relocate(RESTRAINTS_sp, .after = RESTRAINTS) %>% 
-  relocate(DATE_OF_FIELD_VISIT_sp, .after = DATE_OF_FIELD_VISIT)
+sett_all %>% 
+  st_set_geometry(NULL) %>%
+  group_by(OTHERSETTTYPE, MAIN_SETT) %>% 
+  summarise(n=n()) %>%
+  spread(OTHERSETTTYPE, n) 
 
-table(sett_all$MAIN_SETT, sett_all$OTHERSETTTYPE)
 
-sett_all <- sett_all %>% 
-  st_as_sf(sf_column_name = "geometry")
-
-#saveRDS(sett_all, file = "Data/sett_all.RDS")
+# saveRDS(sett_all, file = "Data/sett_all.RDS")
 
 #############################
 #### Visualise sett data ####
 #############################
 
 # temporal trends of sett visits
+table(is.na(sett_all$DATE_OF_FIELD_VISIT))
 
 ggplot(sett_all) + 
-  geom_histogram(aes(x = YEAR), binwidth = 1) + 
+  geom_bar(aes(x = as.factor(YEAR), fill = as.factor(YEAR)), stat = "count") + 
+  labs(fill = "Year") + 
   theme_bw() + 
   ggtitle("Sett visits by year")
 
 ggplot(sett_all) + 
   geom_bar(aes(x = MONTH), stat = "count") + 
+  labs(fill = "Month") + 
   theme_bw() + 
   ggtitle("Sett visits by month")
 
@@ -103,7 +131,7 @@ sett_all%>%
   ggtitle("Spoil heaps")
   
 sett_all%>% 
-  # filter(DISTANCE < 150) %>% 
+  # filter(DISTANCE < 150) %>%
   ggplot + 
   geom_histogram(aes(x = DISTANCE), binwidth = 10) + 
   theme_bw() + 
@@ -117,7 +145,7 @@ sett_all%>%
   ggtitle("Number of restraints used")
 
 sett_all%>% 
-  filter(RESTRAINTS < 20 & RESTRAINTS > 0) %>%
+  # filter(RESTRAINTS < 20 & RESTRAINTS > 0) %>%
   ggplot + 
   geom_histogram(aes(x = RESTRAINTS/DISTANCE), binwidth = 1) + 
   theme_bw() + 
@@ -126,8 +154,9 @@ sett_all%>%
 # Spatial visualisations
 
 ## main setts
-
-ggplot(sett_all) +
+sett_all %>% 
+  distinct(SETT_ID, .keep_all = T) %>% 
+  ggplot +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
   geom_sf(aes(col = MAIN_SETT), alpha = 0.5, size = 0.75) + 
   scale_color_viridis_d() + 
@@ -137,13 +166,12 @@ ggplot(sett_all) +
 
 # some areas have not been sampled. Are there no setts? or no farms? 
 
-
 ## active setts 
 ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
   geom_sf(aes(col = ACTIVE), alpha = 0.5, size = 1) + 
   scale_color_viridis_d() + 
-  labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
+  labs(x = "Longitude", y = "Latitude", col = "Active sett") + 
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
 
@@ -160,7 +188,7 @@ sett_all %>%
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
 
-## number of distance
+## distance
 sett_all %>% 
   filter(RESTRAINTS < 20 & RESTRAINTS > 0)  %>% 
   filter(DISTANCE < 150) %>% 
@@ -171,6 +199,20 @@ sett_all %>%
   labs(x = "Longitude", y = "Latitude", col = "Number of restrains", size = "Distance") + 
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(alpha = 1)))
+
+
+## number of badgers
+
+
+ggplot(sett_all) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(col = "darkgray") +  
+  geom_sf(data = . %>% filter(BADGERS > 0), aes(col = BADGERS)) +  
+  scale_colour_viridis(option = "C") + 
+  labs(x = "Longitude", y = "Latitude", col = "Number of badgers") + 
+  theme_bw() + 
+  guides(col = guide_legend(override.aes = list(alpha = 1)))
+# we don't really know what this data is at all
 
 
 ## habitats
