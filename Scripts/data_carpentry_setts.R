@@ -113,6 +113,7 @@ sett_all %>%
 #############################
 #### Visualise sett data ####
 #############################
+sett_all <- readRDS("Data/sett_all.RDS")
 
 # temporal trends of sett visits
 table(is.na(sett_all$DATE_OF_FIELD_VISIT))
@@ -132,14 +133,14 @@ ggplot(sett_all) +
 # other characteristics (only from the non-spatial data (except restraints))
 
 sett_all%>% 
-  # filter(OPENINGS < 40) %>%
+  filter(OPENINGS < 40) %>%
   ggplot + 
   geom_bar(aes(x = OPENINGS), stat = "count") + 
   theme_bw() + 
   ggtitle("Number of openings")
 
 sett_all%>% 
-  # filter(OPENINGS_USED < 20) %>%
+  filter(OPENINGS_USED < 20) %>%
   ggplot + 
   geom_bar(aes(x = OPENINGS_USED), stat = "count") + 
   theme_bw() + 
@@ -153,14 +154,14 @@ sett_all%>%
   ggtitle("Spoil heaps")
   
 sett_all%>% 
-  # filter(DISTANCE < 150) %>%
+  filter(DISTANCE < 150) %>%
   ggplot + 
   geom_histogram(aes(x = DISTANCE), binwidth = 10) + 
   theme_bw() + 
   ggtitle("Search distance")
 
 sett_all%>% 
-  # filter(RESTRAINTS < 20 & RESTRAINTS > 0) %>%
+  filter(RESTRAINTS < 40 & RESTRAINTS > 0) %>%
   ggplot + 
   geom_bar(aes(x = RESTRAINTS), stat = "count") + 
   theme_bw() + 
