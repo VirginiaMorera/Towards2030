@@ -48,6 +48,7 @@ all_data %>%
             x_coord = unique(x_coord), 
             y_coord = unique(y_coord)) %>%  
   filter(!is.na(x_coord)) %>%
+  filter(!is.na(year_captured)) %>% 
   st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland)) %>% 
   ggplot + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
@@ -58,6 +59,9 @@ all_data %>%
   theme_bw() + 
   facet_wrap(~year_captured, nrow = 3) + 
   ggtitle("N capture events for setts checked more than once")
+
+ggsave(file = "Outputs/capture_events_sett_year.png", scale = 2)
+
 
 # map capture events per sett spatially
 all_data %>% 
@@ -115,10 +119,11 @@ badger_weight <- all_data %>%
 
 ggplot(badger_weight) + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
-  geom_sf(aes(col = Avg_weight)) + 
+  geom_sf(data = . %>% filter(!is.na(year_captured)), aes(col = Avg_weight)) + 
   scale_color_viridis_c() + 
   facet_wrap(~year_captured, nrow = 3) + 
   theme_bw()
 
+ggsave(file = "Outputs/avg_weigt_sett_year.png", scale = 2)
 
 
