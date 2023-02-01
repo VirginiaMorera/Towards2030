@@ -96,6 +96,8 @@ badgers_all <- bind_rows(badgers_clean, badgers_vacc_clean)
 #### Visualise badger individual data ####
 ##########################################
 
+badgers_all <- readRDS("Data/badgers_all.RDS")
+
 # Date captured
 ggplot(badgers_all) + 
   geom_bar(aes(x = monthyear_capt, fill = month_captured)) + 
