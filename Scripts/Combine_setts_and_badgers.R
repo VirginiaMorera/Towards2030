@@ -7,6 +7,7 @@ source("Scripts/setup.R")
 
 sett_all <- readRDS("Data/sett_all.RDS")
 badgers_all <- readRDS("Data/badgers_all.RDS")
+IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
 ireland <- st_read("Data/ireland_ITM.shp")
 
 ####################################
