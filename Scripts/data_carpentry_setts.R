@@ -44,7 +44,9 @@ sett_clean <- sett %>%
          OTHERSETTTYPE = na_if(OTHERSETTTYPE, "NA")) %>% 
   # turn into spatial 
   st_as_sf(coords = c("X_COORDINATE", "Y_COORDINATE"), crs = st_crs(sett_spatial)) %>% 
+  # transform to ITM
   st_transform(st_crs(ireland)) %>% 
+  # keep coordinates but remove geometry
   mutate(x_coordinate = sf::st_coordinates(.)[,1],
          y_coordinate = sf::st_coordinates(.)[,2]) %>% 
   st_set_geometry(NULL)
@@ -56,7 +58,7 @@ attributes(sett_clean$y_coordinate) <- NULL
 sett_spatial_clean <- sett_spatial %>% 
   # remove unnecessary or empty variables
   dplyr::select(-TOTAL_BADG, -CAPT_BADGE, -VACC_BADGE, -DVO, -X_COORDINA, 
-                -Y_COORDINA, -ID, -SETT_NO) %>%
+                -Y_COORDINA, -ID, -SETT_NO, -VISITASSES) %>%
   # turn sett id as numeric
   mutate(SETT_ID = as.numeric(SETT_ID), 
          # turn number of badgers to numeric       
@@ -90,50 +92,45 @@ sett_spatial_clean <- sett_spatial %>%
 attributes(sett_spatial_clean$x_coordinate) <- NULL
 attributes(sett_spatial_clean$y_coordinate) <- NULL
 
-## create unique sett visit ID to merge, in case there are repeated obs in both DS
-## taking into account that half the spatial ds rows have no date of visit, still we 
-## could be having repeated obs 
+# we have checked and info in the spatial and the non-spatial setts is complementary, so we remove dates from the datasets
+# so we can merge it and not duplicate rows
 
+# store geometry in separate dataframe
 
-sett_all <- full_join(sett_clean, sett_spatial_clean) %>% 
+sett_geometry <- sett_spatial_clean %>% 
+  select(SETT_ID, x_coordinate, y_coordinate) %>% 
   st_as_sf(coords = c("x_coordinate", "y_coordinate"), crs = st_crs(ireland))
 
+setr_geometry_backup <- sett_clean %>% 
+  select(SETT_ID, x_coordinate, y_coordinate) %>% 
+  st_as_sf(coords = c("x_coordinate", "y_coordinate"), crs = st_crs(ireland))
+
+# full join without dates and coordinates to get just one record per set
+sett_all <- full_join(sett_spatial_clean %>% select(-x_coordinate, -y_coordinate, -DATE_OF_FIELD_VISIT, -MONTH, -YEAR, -RESTRAINTS), 
+                      sett_clean %>% select(-x_coordinate, -y_coordinate, -DATE_OF_FIELD_VISIT, -MONTH, -YEAR,-OTHER_EVIDENCE_SPECIFIED), 
+                      by = c("SETT_ID", "MAIN_SETT")) 
 
 
-# table main sett vs other sett type
-sett_all %>% 
-  st_set_geometry(NULL) %>%
-  group_by(OTHERSETTTYPE, MAIN_SETT) %>% 
-  summarise(n=n()) %>%
-  spread(OTHERSETTTYPE, n) 
+# add back geometry, preferentially from spatial original dataset
 
+sett_all_spatial <- left_join(sett_all, sett_geometry) %>% 
+  st_as_sf(sf_column_name = "geometry") 
+  
 
-# saveRDS(sett_all, file = "Data/sett_all.RDS")
+ggplot(sett_all_spatial) + 
+  geom_sf(data = ireland, col = "darkgray", fill = NA) + 
+  geom_sf(aes(col = MAIN_SETT)) + 
+  theme_bw()
+
+# saveRDS(sett_all_spatial, file = "Data/sett_all.RDS")
 
 #############################
 #### Visualise sett data ####
 #############################
 sett_all <- readRDS("Data/sett_all.RDS")
 
-# temporal trends of sett visits
-table(is.na(sett_all$DATE_OF_FIELD_VISIT))
-
-ggplot(sett_all) + 
-  geom_bar(aes(x = as.factor(YEAR), fill = as.factor(YEAR)), stat = "count") + 
-  labs(fill = "Year") + 
-  theme_bw() + 
-  ggtitle("Sett visits by year")
-
-ggplot(sett_all) + 
-  geom_bar(aes(x = MONTH), stat = "count") + 
-  labs(fill = "Month") + 
-  theme_bw() + 
-  ggtitle("Sett visits by month")
-
-# other characteristics (only from the non-spatial data (except restraints))
-
 sett_all%>% 
-  filter(OPENINGS < 40) %>%
+  # filter(OPENINGS < 40) %>%
   ggplot + 
   geom_bar(aes(x = OPENINGS), stat = "count") + 
   theme_bw() + 
@@ -147,14 +144,14 @@ sett_all%>%
   ggtitle("Number of openings used")
 
 sett_all%>% 
-  # filter(SPOIL_HEAPS < 20) %>%
+  filter(SPOIL_HEAPS < 20) %>%
   ggplot + 
   geom_bar(aes(x = SPOIL_HEAPS), stat = "count") + 
   theme_bw() + 
   ggtitle("Spoil heaps")
   
 sett_all%>% 
-  filter(DISTANCE < 150) %>%
+  # filter(DISTANCE < 150) %>%
   ggplot + 
   geom_histogram(aes(x = DISTANCE), binwidth = 10) + 
   theme_bw() + 
