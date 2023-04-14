@@ -120,9 +120,9 @@ badger_weight <- all_data %>%
 
 ggplot(badger_weight) + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
-  geom_sf(data = . %>% filter(!is.na(year_captured)), aes(col = Avg_weight)) + 
+  geom_sf(data = . %>% filter(!is.na(Avg_weight)), aes(col = Avg_weight)) + 
   scale_color_viridis_c() + 
-  facet_wrap(~year_captured, nrow = 3) + 
+  # facet_wrap(~year_captured, nrow = 3) + 
   theme_bw()
 
 ggsave(file = "Outputs/avg_weigt_sett_year.png", scale = 2)
