@@ -119,7 +119,7 @@ sett_all_spatial <- left_join(sett_all, sett_geometry) %>%
 
 ggplot(sett_all_spatial) + 
   geom_sf(data = ireland, col = "darkgray", fill = NA) + 
-  geom_sf(aes(col = MAIN_SETT)) + 
+  geom_sf(aes(col = VACCINE_STATUS)) + 
   theme_bw()
 
 # saveRDS(sett_all_spatial, file = "Data/sett_all.RDS")

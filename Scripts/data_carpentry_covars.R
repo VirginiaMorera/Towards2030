@@ -6,6 +6,7 @@ source("Scripts/setup.R")
 sett_all <- readRDS("Data/sett_all.RDS")
 ireland <- st_read("Data/ireland_ITM.shp")
 
+# ugly data carpentry to put covars together 
 covars <- stack("Covars/all_covars.grd")
 covars@crs
 covars_sub <- stack("Covars/covar_subset_ITM.grd")
@@ -43,3 +44,6 @@ plot(all_covars, maxnl=32)
 
 
 writeRaster(all_covars, filename = "Covars/all_covars_ITM_5k.grd")
+
+
+#### 2. Covars 
