@@ -117,12 +117,25 @@ sett_all_spatial <- left_join(sett_all, sett_geometry) %>%
   st_as_sf(sf_column_name = "geometry") 
   
 
-ggplot(sett_all_spatial) + 
+ggplot(sett_all2) + 
   geom_sf(data = ireland, col = "darkgray", fill = NA) + 
   geom_sf(aes(col = VACCINE_STATUS)) + 
   theme_bw()
 
-# saveRDS(sett_all_spatial, file = "Data/sett_all.RDS")
+
+#remove weird point out at sea
+
+ireland_pol <- st_buffer(ireland, dist = 0) %>% 
+  mutate(Inside = 1) %>% 
+  select(Inside)
+  
+# sett_all2 <- sett_all %>% 
+#   st_overlaps(ireland_pol)
+
+sett_all2 <- st_join(sett_all_spatial, ireland_pol, 
+        join = st_within, left=FALSE)
+
+# saveRDS(sett_all2, file = "Data/sett_all.RDS")
 
 #############################
 #### Visualise sett data ####
