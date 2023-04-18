@@ -9,6 +9,8 @@ library(tidylog)
 library(magrittr)
 library(readxl)
 library(purrr)
+library(inlabru)
+library(INLA)
 
 getmode <- function(v) {
   uniqv <- unique(v)
