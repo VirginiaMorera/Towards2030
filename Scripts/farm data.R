@@ -26,11 +26,11 @@ farm_buffers <- postive_farms %>%
   st_union(by_feature = FALSE) 
 
 # crop buffer polygon to actual ireland outlinie
-ireland_outline <- st_buffer(ireland, dist = 0)
+ireland_outline <- st_union(ireland, by_feature = FALSE)
 samplers <- st_intersection(farm_buffers, ireland_outline)
 
 # plot to check
-ggplot(ireland) + 
+ggplot(ireland_outline) + 
   geom_sf() + 
   geom_sf(data = farm_buffers, fill = NA, col = "red")  +
   # geom_sf(data = sett_all, size = 0.5) + 
