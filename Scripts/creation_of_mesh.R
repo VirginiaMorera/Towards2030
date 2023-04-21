@@ -90,7 +90,8 @@ for (t in 1:tl) {
 }
 #transform it in Spatial Points
 posTri = SpatialPoints(posTri)
-posTri@proj4string <- boundary_out$crs
+posTri@proj4string <- CRS("NA")
+boundary_sp@proj4string <- CRS("NA")
 normal = over(boundary_sp, posTri, returnList = T) # this are the polygons contained in the inner boundary, the "good" ones
 normal = unlist(normal)
 barrier.triangles = setdiff(1:tl, normal) # this are the polygons of the outer boundary, the ones we want to hide
@@ -106,3 +107,4 @@ plot(poly.barrier, col = "gray", add = T)
 saveRDS(mesh, file = "data/mesh.RDS")
 saveRDS(boundary2_sp, file = "data/outer_boundary.RDS")
 saveRDS(boundary_sp, file = "data/inner_boundary.RDS")
+saveRDS(poly.barrier, )
