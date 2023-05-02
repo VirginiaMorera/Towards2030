@@ -5,6 +5,12 @@ source("Scripts/setup.R")
 
 ### Load map of ireland to use as boundary, and point data to check they're inside the boundary
 ireland <- st_read("Data/ireland_ITM.shp")
+ireland_outline <- ireland %>% 
+  summarise(geometry = st_union(geometry),
+            AREA = sum(AREA))
+
+ireland_outline <- as_Spatial(ireland_outline)
+
 sett_all <- readRDS("Data/sett_all.RDS")
 mesh <- readRDS("Data/mesh.RDS")
 inner_boundary <- readRDS("Data/inner_boundary.RDS")
@@ -17,30 +23,35 @@ setts <- as_Spatial(sett_all)
 samplers <- as_Spatial(samplers)
 # Construct latent model components
 matern <- inla.spde2.pcmatern(mesh,
-                              prior.sigma = c(0.5, 0.05),
-                              prior.range = c(1000, 0.05)
+                              alpha = 3/2,
+                              prior.sigma = c(1, 0.05),
+                              prior.range = c(20000, 0.05)
 )
-
-
-df <- pixels(mesh, mask = inner_boundary)
-
-ggplot() +
-  gg(landCover) +
-  gg(mesh) +
-  gg(inner_boundary) + 
-  gg(samplers) +
-  # gg(setts, color = "white", size = 0.1, alpha = 0.5) +
-  coord_equal()
 
 
 landCover@proj4string <- mesh$crs
 setts@proj4string <- mesh$crs
 inner_boundary@proj4string <- mesh$crs
 samplers@proj4string <- mesh$crs
+ireland_outline@proj4string <- mesh$crs
+
+df <- pixels(mesh, mask = inner_boundary)
+
+ggplot() +
+  gg(landCover) +
+  # gg(mesh) +
+  # gg(inner_boundary) + 
+  # gg(samplers) +
+  # gg(setts, color = "white", size = 0.1, alpha = 0.5) +
+  coord_equal()
+
+
 
 # model formula
-comp2 <- coordinates ~ - Intercept  +landUse(landCover, model = "factor_full") +
-  mySmooth(coordinates, model = matern)
+comp2 <- coordinates ~ - Intercept  + 
+  landUse(landCover, model = "factor_full") +
+  mySmooth(coordinates, model = matern) +
+  NULL
 
 m1 <- lgcp(comp2, 
            setts, 
@@ -49,19 +60,19 @@ m1 <- lgcp(comp2,
 
 summary(m1)
 
-int2 <- predict(m1, 
-                df, 
-                # mesh = mesh, mask = inner_boundary,
-                formula = ~ landUse,
-                # predictor = TRUE,
-                # fun = 'exp'
-                n.samples = 1000)
-
-ggplot() +
-  gg(int2, aes(fill = mean)) +
-  # gg(boundary, alpha = 0, lwd = 2) +
-  # gg(nests) +
-  coord_equal()
+# int2 <- predict(m1, 
+#                 df, 
+#                 # mesh = mesh, mask = inner_boundary,
+#                 formula = ~ mySmooth,
+#                 # predictor = TRUE,
+#                 # fun = 'exp'
+#                 n.samples = 1000)
+# 
+# ggplot() +
+#   gg(int2, aes(fill = mean)) +
+#   # gg(boundary, alpha = 0, lwd = 2) +
+#   # gg(nests) +
+#   coord_equal()
 
 lp2 <- predict(m1, df, ~ list(
   smooth_landUse = mySmooth + landUse,
@@ -69,7 +80,8 @@ lp2 <- predict(m1, df, ~ list(
   landUse = landUse
 ))
 
-lprange <- range(lp2$smooth_landUse$median, lp2$smooth$median, lp2$landUse$median)
+
+(lprange <- range(lp2$smooth_landUse$median, lp2$smooth$median, lp2$landUse$median))
 csc <- scale_fill_gradientn(colours = brewer.pal(9, "YlOrRd"), limits = lprange)
 
 plot.lp2 <- ggplot() +
@@ -113,30 +125,27 @@ corplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.correlation"))
 covplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.covariance"))
 multiplot(covplot, corplot)
 
-elev <- as(env_vars$elevation, "SpatialPixelsDataFrame")
+elev <- as(env_vars$human_footprint_index, "SpatialPixelsDataFrame")
+elev@proj4string <- mesh$crs
 
 
-f.elev <- function(xy) {
-  # turn coordinates into SpatialPoints object:
-  # with the appropriate coordinate reference system (CRS)
-  spp <- SpatialPoints(data.frame(x = xy[, 1], y = xy[, 2]),
-                       proj4string = fm_CRS(elev)
-  )
-  # Extract elevation values at spp coords, from our elev SpatialGridDataFrame
-  v <- over(spp, elev)
-  if (any(is.na(v$elevation))) {
-    v$elevation <- bru_fill_missing(elev, spp, v$elevation)
-  }
-  return(v$elevation)
-}
+
+mesh1D <- inla.mesh.1d(seq(min(elev$human_footprint_index), max(elev$human_footprint_index), length.out = 10), 
+                       boundary = "free")
 
 matern <- inla.spde2.pcmatern(mesh,
-                              prior.sigma = c(0.1, 0.01),
-                              prior.range = c(5, 0.01)
+                              alpha = 3/2,
+                              prior.sigma = c(5, 0.05),
+                              prior.range = c(100000, 0.05)
 )
 
-ecomp <- coordinates ~ elev(f.elev(coordinates(.data.)), model = "linear") +
-  mySmooth(coordinates, model = matern) + Intercept(1)
+matern1D <- inla.spde2.pcmatern(mesh1D,
+                                prior.range = c(5, 0.01),
+                                prior.sigma = c(0.5, 0.05)
+)
+
+ecomp <- coordinates ~ elevation(map = elev, model = matern1D) +
+  mySmooth(coordinates, model = matern) 
 
 efit <- lgcp(ecomp, setts, 
              domain = list(coordinates = mesh),
@@ -147,19 +156,18 @@ summary(efit)
 e.lp <- predict(
   efit, df,
   ~ list(
-    smooth_elev = mySmooth + elev,
-    elev = elev,
+    smooth_elev = mySmooth + elevation,
+    elev = elevation,
     smooth = mySmooth
   )
 )
 
-lprange <- range(e.lp$smooth_elev$mean, e.lp$elev$mean, e.lp$smooth$mean)
+(lprange <- range(e.lp$smooth_elev$mean, e.lp$elev$mean, e.lp$smooth$mean))
 
-library(RColorBrewer)
 csc <- scale_fill_gradientn(colours = brewer.pal(9, "YlOrRd"), limits = lprange)
 
 plot.e.lp <- ggplot() +
-  gg(e.lp$smooth_elev, mask = inner_boundary) +
+  gg(e.lp$smooth_elev, mask = ireland_outline) +
   csc +
   theme(legend.position = "bottom") +
   gg(inner_boundary, alpha = 0) +
@@ -167,7 +175,7 @@ plot.e.lp <- ggplot() +
   coord_equal()
 
 plot.e.lp.spde <- ggplot() +
-  gg(e.lp$smooth, mask = inner_boundary) +
+  gg(e.lp$smooth, mask = ireland_outline) +
   csc +
   theme(legend.position = "bottom") +
   gg(inner_boundary, alpha = 0) +
@@ -175,7 +183,7 @@ plot.e.lp.spde <- ggplot() +
   coord_equal()
 
 plot.e.lp.elev <- ggplot() +
-  gg(e.lp$elev, mask = inner_boundary) +
+  gg(e.lp$elev, mask = ireland_outline) +
   csc +
   theme(legend.position = "bottom") +
   gg(inner_boundary, alpha = 0) +
@@ -187,3 +195,15 @@ multiplot(plot.e.lp,
           plot.e.lp.elev,
           cols = 3
 )
+
+spde.range <- spde.posterior(efit, "mySmooth", what = "range")
+spde.logvar <- spde.posterior(efit, "mySmooth", what = "log.variance")
+range.plot <- plot(spde.range)
+var.plot <- plot(spde.logvar)
+
+multiplot(range.plot, var.plot)
+
+corplot <- plot(spde.posterior(efit, "mySmooth", what = "matern.correlation"))
+covplot <- plot(spde.posterior(efit, "mySmooth", what = "matern.covariance"))
+multiplot(covplot, corplot)
+
