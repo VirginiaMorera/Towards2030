@@ -14,8 +14,8 @@ boundary <- ireland %>%
   group_by(Country) %>%
   summarise(geometry = sf::st_union(geometry)) %>%
   ungroup() %>% 
-  st_simplify(dTolerance = 10*1000) %>% # simplify border otherwise triangles in the edge will be too small  
-  st_buffer(dist = 15*1000) # buffer to avoid 
+  st_simplify(dTolerance = 20*1000) %>% # simplify border otherwise triangles in the edge will be too small  
+  st_buffer(dist = 20*1000) # buffer to avoid complicated coastline
 
 ### Buffer the inner boundary by 200 km more to create outer boundary
 
@@ -70,7 +70,6 @@ plot(mesh)
 # plot(all_data_sp, add = T, col = "red")
 plot(boundary_sp, border = "green", add = T)
 plot(boundary2_sp, border = "orange", add = T)
-plot(mesh)
 
 ## Creation of mask
 
@@ -104,7 +103,8 @@ plot(poly.barrier, col = "gray", add = T)
 
 
 # saveRDS(poly.barrier, file = "data/barrier.RDS")
-saveRDS(mesh, file = "data/mesh.RDS")
-saveRDS(boundary2_sp, file = "data/outer_boundary.RDS")
-saveRDS(boundary_sp, file = "data/inner_boundary.RDS")
-saveRDS(poly.barrier, )
+saveRDS(mesh, file = "Data/mesh.RDS")
+saveRDS(boundary2_sp, file = "Data/outer_boundary.RDS")
+saveRDS(boundary_sp, file = "Data/inner_boundary.RDS")
+saveRDS(poly.barrier, file = "Data/barrier.RDS")
+
