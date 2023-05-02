@@ -11,6 +11,7 @@ library(readxl)
 library(purrr)
 library(inlabru)
 library(INLA)
+library(RColorBrewer)
 
 getmode <- function(v) {
   uniqv <- unique(v)
