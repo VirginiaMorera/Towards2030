@@ -6,7 +6,8 @@ source("Scripts/setup.R")
 ### Load map of ireland to use as boundary, and point data to check they're inside the boundary
 ireland <- st_read("Data/ireland_ITM.shp")
 sett_all <- readRDS("Data/sett_all.RDS")
-
+ireland %<>% st_transform(crs = projKM)
+sett_all %<>% st_transform(crs = projKM)
 
 ### create boundary simplifying map of ireland
 boundary <- ireland %>% 
@@ -14,13 +15,13 @@ boundary <- ireland %>%
   group_by(Country) %>%
   summarise(geometry = sf::st_union(geometry)) %>%
   ungroup() %>% 
-  st_simplify(dTolerance = 20*1000) %>% # simplify border otherwise triangles in the edge will be too small  
-  st_buffer(dist = 20*1000) # buffer to avoid complicated coastline
+  st_simplify(dTolerance = 20) %>% # simplify border otherwise triangles in the edge will be too small  
+  st_buffer(dist = 20) # buffer to avoid complicated coastline
 
 ### Buffer the inner boundary by 200 km more to create outer boundary
 
 boundary2 <- boundary %>% 
-  st_buffer(dist = 200*1000)
+  st_buffer(dist = 200)
 
 ### Plot to check what we've got
 
@@ -57,11 +58,18 @@ boundary_out$crs
 # The edge of the triangles in the inner mesh is 20km
 # The edge of the triangles in the outer mesh is 50km 
 
+# parameters from deer model (ish)
 mesh <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                     max.edge = c(20*1000, 100*1000), 
-                     cutoff = 20*1000, crs = boundary_out$crs)
+                     max.edge = c(20, 100), 
+                     cutoff = 20, crs = boundary_out$crs)
 mesh$crs
-inla.identical.CRS(mesh$crs, boundary_sp@proj4string)
+
+# parameters from Dambly et al 2023
+
+mesh <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
+                     max.edge = c(45, 150), 
+                     cutoff = 9, crs = boundary_out$crs)
+mesh$crs
 
 
 #### Plot mesh ####
@@ -104,6 +112,8 @@ plot(poly.barrier, col = "gray", add = T)
 
 # saveRDS(poly.barrier, file = "data/barrier.RDS")
 saveRDS(mesh, file = "Data/mesh.RDS")
+saveRDS(mesh, file = "Data/small_mesh.RDS")
+saveRDS(mesh, file = "Data/Dambly_mesh3.RDS")
 saveRDS(boundary2_sp, file = "Data/outer_boundary.RDS")
 saveRDS(boundary_sp, file = "Data/inner_boundary.RDS")
 saveRDS(poly.barrier, file = "Data/barrier.RDS")
