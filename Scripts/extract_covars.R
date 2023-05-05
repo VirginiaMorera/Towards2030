@@ -5,8 +5,8 @@ env_vars <- stack("Data/all_covars1km.grd")
 ireland <- st_read("Data/ireland_ITM.shp")
 
 landUse <- env_vars$landCover
-landUseITM <- projectRaster(landUse, crs = crs(ireland), method = "ngb")
-env_vars_ITM <- projectRaster(env_vars, crs = crs(ireland))
+landUseITM <- projectRaster(landUse, crs = projKM, method = "ngb")
+env_vars_ITM <- projectRaster(env_vars, crs = projKM)
 env_vars_ITM$landCover <- landUseITM
 table(env_vars_ITM$landCover[])
 
