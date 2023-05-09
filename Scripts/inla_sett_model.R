@@ -42,107 +42,107 @@ ipoints@proj4string <- mesh$crs
 
 
 
-landCover@data$landCover <- as.factor(landCover@data$landCover)
-
-
-# Construct latent model components
-matern <- inla.spde2.pcmatern(mesh,
-                              alpha = 3/2,
-                              prior.sigma = c(0.05, 0.05),
-                              prior.range = c(200, 0.05)
-)
-
-
-
-
-ggplot() +
-  gg(landCover) +
-  # gg(mesh) +
-  # gg(inner_boundary) + 
-  gg(samplers) +
-  gg(setts, color = "white", size = 0.1, alpha = 0.5) +
-  coord_equal()
-
-
-
-# model formula
-comp2 <- coordinates ~ - Intercept  + 
-  landUse(landCover, model = "factor_full") +
-  mySmooth(coordinates, model = matern) +
-  NULL
-
-m1 <- lgcp(comp2, 
-           setts, 
-           domain = list(coordinates = mesh),
-           samplers = samplers, 
-           options =
-             list(
-               bru_verbose = TRUE,
-               control.inla = list(int.strategy = "eb", strategy = "gaussian")
-             ))
-
-summary(m1)
-
-
-lp2 <- predict(m1, df, ~ list(
-  smooth_landUse = mySmooth + landUse,
-  smooth = mySmooth,
-  landUse = landUse
-))
-
-
-(lprange <- range(lp2$smooth_landUse$median, lp2$smooth$median, lp2$landUse$median))
-csc <- scale_fill_gradientn(colours = brewer.pal(9, "YlOrRd"), limits = lprange)
-
-plot.lp2 <- ggplot() +
-  gg(lp2$smooth_landUse) +
-  csc +
-  theme(legend.position = "bottom") +
-  gg(inner_boundary, alpha = 0) +
-  ggtitle("mySmooth + landUse") +
-  coord_equal()
-
-plot.lp2.spde <- ggplot() +
-  gg(lp2$smooth) +
-  csc +
-  theme(legend.position = "bottom") +
-  gg(inner_boundary, alpha = 0) +
-  ggtitle("mySmooth") +
-  coord_equal()
-
-plot.lp2.veg <- ggplot() +
-  gg(lp2$landUse) +
-  csc +
-  theme(legend.position = "bottom") +
-  gg(inner_boundary, alpha = 0) +
-  ggtitle("landUse") +
-  coord_equal()
-
-multiplot(plot.lp2, plot.lp2.spde, plot.lp2.veg, cols = 3)
-
-flist <- vector("list", NROW(m1$summary.random$landUse))
-for (i in seq_along(flist)) flist[[i]] <- plot(m1, "landUse", index = i)
-multiplot(plotlist = flist, cols = 3)
-
-spde.range <- spde.posterior(m1, "mySmooth", what = "range")
-spde.logvar <- spde.posterior(m1, "mySmooth", what = "log.variance")
-range.plot <- plot(spde.range)
-var.plot <- plot(spde.logvar)
-
-multiplot(range.plot, var.plot)
-
-corplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.correlation"))
-covplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.covariance"))
-multiplot(covplot, corplot)
-
-
-Lambda2 <- predict(
-  m1,
-  ipoints,
-  ~ sum(weight * exp(mySmooth + landUse))
-)
-
-Lambda2
+# landCover@data$landCover <- as.factor(landCover@data$landCover)
+# 
+# 
+# # Construct latent model components
+# matern <- inla.spde2.pcmatern(mesh,
+#                               alpha = 3/2,
+#                               prior.sigma = c(0.05, 0.05),
+#                               prior.range = c(200, 0.05)
+# )
+# 
+# 
+# 
+# 
+# ggplot() +
+#   gg(landCover) +
+#   # gg(mesh) +
+#   # gg(inner_boundary) + 
+#   gg(samplers) +
+#   gg(setts, color = "white", size = 0.1, alpha = 0.5) +
+#   coord_equal()
+# 
+# 
+# 
+# # model formula
+# comp2 <- coordinates ~ - Intercept  + 
+#   landUse(landCover, model = "factor_full") +
+#   mySmooth(coordinates, model = matern) +
+#   NULL
+# 
+# m1 <- lgcp(comp2, 
+#            setts, 
+#            domain = list(coordinates = mesh),
+#            samplers = samplers, 
+#            options =
+#              list(
+#                bru_verbose = TRUE,
+#                control.inla = list(int.strategy = "eb", strategy = "gaussian")
+#              ))
+# 
+# summary(m1)
+# 
+# 
+# lp2 <- predict(m1, df, ~ list(
+#   smooth_landUse = mySmooth + landUse,
+#   smooth = mySmooth,
+#   landUse = landUse
+# ))
+# 
+# 
+# (lprange <- range(lp2$smooth_landUse$median, lp2$smooth$median, lp2$landUse$median))
+# csc <- scale_fill_gradientn(colours = brewer.pal(9, "YlOrRd"), limits = lprange)
+# 
+# plot.lp2 <- ggplot() +
+#   gg(lp2$smooth_landUse) +
+#   csc +
+#   theme(legend.position = "bottom") +
+#   gg(inner_boundary, alpha = 0) +
+#   ggtitle("mySmooth + landUse") +
+#   coord_equal()
+# 
+# plot.lp2.spde <- ggplot() +
+#   gg(lp2$smooth) +
+#   csc +
+#   theme(legend.position = "bottom") +
+#   gg(inner_boundary, alpha = 0) +
+#   ggtitle("mySmooth") +
+#   coord_equal()
+# 
+# plot.lp2.veg <- ggplot() +
+#   gg(lp2$landUse) +
+#   csc +
+#   theme(legend.position = "bottom") +
+#   gg(inner_boundary, alpha = 0) +
+#   ggtitle("landUse") +
+#   coord_equal()
+# 
+# multiplot(plot.lp2, plot.lp2.spde, plot.lp2.veg, cols = 3)
+# 
+# flist <- vector("list", NROW(m1$summary.random$landUse))
+# for (i in seq_along(flist)) flist[[i]] <- plot(m1, "landUse", index = i)
+# multiplot(plotlist = flist, cols = 3)
+# 
+# spde.range <- spde.posterior(m1, "mySmooth", what = "range")
+# spde.logvar <- spde.posterior(m1, "mySmooth", what = "log.variance")
+# range.plot <- plot(spde.range)
+# var.plot <- plot(spde.logvar)
+# 
+# multiplot(range.plot, var.plot)
+# 
+# corplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.correlation"))
+# covplot <- plot(spde.posterior(m1, "mySmooth", what = "matern.covariance"))
+# multiplot(covplot, corplot)
+# 
+# 
+# Lambda2 <- predict(
+#   m1,
+#   ipoints,
+#   ~ sum(weight * exp(mySmooth + landUse))
+# )
+# 
+# Lambda2
 
 elev <- as(env_vars$elevation, "SpatialPixelsDataFrame")
 elev@proj4string <- mesh$crs
@@ -157,24 +157,27 @@ ggplot() +
 
 
 
-mesh1D <- inla.mesh.1d(seq(min(elev$elevation)-40, max(elev$elevation)+40, length.out = 10),
+mesh1D <- inla.mesh.1d(seq(min(elev$elevation)-40, max(elev$elevation)+40, length.out = 100),
                        boundary = "free")
 
+ggplot() +
+  gg(mesh1D, shape = "|", size = 5)
+
 matern1D <- inla.spde2.pcmatern(mesh1D,
-                                prior.range = c(200, 0.01),
-                                prior.sigma = c(2, 0.05)
+                                alpha = 3/2,
+                                prior.range = c(700, 0.01),
+                                prior.sigma = c(2, 0.01)
 )
 
 matern <- inla.spde2.pcmatern(mesh,
                               alpha = 3/2,
-                              prior.sigma = c(1, 0.05),
-                              prior.range = c(500, 0.05)
+                              prior.range = c(500, 0.05), 
+                              prior.sigma = c(0.1, 0.05)
 )
 
 
 ecomp <- coordinates ~ elevation(main = elev, model = matern1D) +
-  mySmooth(coordinates, model = matern) +
-  NULL
+  mySmooth(coordinates, model = matern) 
 
 efit <- lgcp(ecomp, setts, 
              domain = list(coordinates = mesh),
@@ -186,14 +189,16 @@ efit <- lgcp(ecomp, setts,
                )
              )
 
+                                                                                                                                                                                                                                                             summary(efit)
 summary(efit)
+
 
 e.lp <- predict(
   efit, df,
   ~ list(
     smooth_elev = mySmooth + elevation,
-    elev = elevation,
-    smooth = mySmooth
+    smooth = mySmooth,
+    elev = elevation
   )
 )
 
