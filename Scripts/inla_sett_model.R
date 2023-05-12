@@ -54,22 +54,22 @@ ipoints@proj4string <- mesh1$crs
 ## spatial random effect
 matern <- inla.spde2.pcmatern(mesh1,
                               alpha = 3/2,
-                              prior.range = c(500, 0.05), 
+                              prior.range = c(15, 0.5), 
                               prior.sigma = c(0.1, 0.05)
 )
 
 
 ## 1d mesh for elevation
-elev <- as(env_vars_scaled$elevation, "SpatialPixelsDataFrame")
-elev@proj4string <- mesh1$crs
+elevation <- as(env_vars_scaled$elevation, "SpatialPixelsDataFrame")
+elevation@proj4string <- mesh1$crs
 
 ggplot() +
-  gg(elev) +
+  gg(elevation) +
   gg(mesh1) +
   gg(samplers, colour = "white") +
   coord_equal()
 
-mesh1D_elev <- inla.mesh.1d(seq(min(elev$elevation)-1, max(elev$elevation)+1, length.out = 10), 
+mesh1D_elev <- inla.mesh.1d(seq(min(elevation$elevation)-1, max(elevation$elevation)+1, length.out = 10), 
                             degree = 2) 
 
 ggplot() +
@@ -128,12 +128,23 @@ matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
 
 #### Model formulas ####
 
-linear_nonSPDE <- coordinates ~ - Intercept  +
-  landUseEff(land_use, model = "factor_full") +
-  elevationEff(elev, model = "linear") + 
-  slopeEff(slope, model = "linear") + 
-  hfiEff(hfi, model = "linear") + 
+# land use seems to whack the model out of balance, so we're not using it for now. We can add the continuous layers if necessary
+linear_nonSPDE <- coordinates ~  Intercept  +
+  # Eff.landUse(land_use, model = "factor_full") +
+  Eff.elevation(elevation, model = "linear") +
+  Eff.slope(slope, model = "linear") +
+  Eff.hfi(hfi, model = "linear") +
   NULL
+
+linear_SPDE <- 
+  linear_nonSPDE <- coordinates ~  Intercept  +
+  # Eff.landUse(land_use, model = "factor_full") +
+  Eff.elevation(elevation, model = "linear") +
+  # Eff.slope(slope, model = "linear") +
+  Eff.hfi(hfi, model = "linear") +
+  mySmooth(coordinates, model = matern) +
+  NULL
+
 
 
 #### Running models ####
@@ -145,24 +156,28 @@ m1 <- lgcp(linear_nonSPDE,
 
 summary(m1)
 
+m2 <- lgcp(linear_SPDE,
+           setts,
+           domain = list(coordinates = mesh1),
+           samplers = samplers)
 
-#### Predict in linear scale
+summary(m2)
 
-## spatial prediction
+#### Predict in linear scale ####
+
+### m1
+
+## predict
 
 lp1 <- predict(m1, df, ~ list(
-  landUse = landUseEff,
-  elevation = elevationEff,
-  slope = slopeEff, 
-  hfi = hfiEff
+  # landUse = Eff.landUse,
+  elevation = Eff.elevation,
+  slope = Eff.slope, 
+  hfi = Eff.hfi,
+  all = Eff.elevation + Eff.slope + Eff.hfi
 ))
 
-
-p.lp1.landuse <- ggplot() +
-  gg(lp1$landUse) +
-  theme(legend.position = "bottom") +
-  ggtitle("Land Use") +
-  coord_equal()
+## plot 
 
 p.lp1.elev <- ggplot() +
   gg(lp1$elevation) +
@@ -182,35 +197,232 @@ p.lp1.hfi <- ggplot() +
   ggtitle("Human Footprint Index") +
   coord_equal()
 
-multiplot(p.lp1.landuse, p.lp1.elev, p.lp1.slope, p.lp1.hfi, cols = 2)
+p.lp1.all <- ggplot() + 
+  gg(lp1$all) + 
+  theme(legend.position = "bottom") +
+  ggtitle("all covariates effect") +
+  coord_equal()
 
-## predict effect
+multiplot(p.lp1.elev, p.lp1.slope, p.lp1.hfi, p.lp1.all, cols = 2)
 
-# factor
+### m2
 
-flist <- vector("list", nrow(m1$summary.random$landUseEff))
-for (i in seq_along(flist)) flist[[i]] <- plot(m1, "landUseEff", index = i)
-multiplot(plotlist = flist, cols = 3)
+## predict
 
-# continuous 
+lp2 <- predict(m2, df, ~ list(
+  # landUse = Eff.landUse,
+  elevation = Eff.elevation,
+  slope = Eff.slope, 
+  hfi = Eff.hfi,
+  smooth = mySmooth,
+  all = Eff.elevation + Eff.slope + Eff.hfi + mySmooth
+))
+
+
+## plot 
+
+p.lp2.elev <- ggplot() +
+  gg(lp2$elevation, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Elevation") +
+  coord_equal()
+
+p.lp2.slope <- ggplot() +
+  gg(lp2$slope, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Slope") +
+  coord_equal()
+
+p.lp2.hfi <- ggplot() +
+  gg(lp2$hfi, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Human Footprint Index") +
+  coord_equal()
+
+p.lp2.all <- ggplot() + 
+  gg(lp2$all, mask = ireland_outline) + 
+  theme(legend.position = "bottom") +
+  ggtitle("all covariates effect + smooth") +
+  coord_equal()
+
+p.lp2.smooth <- ggplot() + 
+  gg(lp2$smooth, mask = ireland_outline) + 
+  theme(legend.position = "bottom") +
+  ggtitle("Smooth") +
+  coord_equal()
+
+multiplot(p.lp2.elev, p.lp2.slope, p.lp2.hfi, p.lp2.all, 
+          p.lp2.smooth, cols = 3)
+
+#### Predict in response scale ####
+
+## predict
+
+rp1 <- predict(m1, df, ~ list(
+  # landUse = Eff.landUse,
+  elevation = exp(Eff.elevation),
+  slope = exp(Eff.slope), 
+  hfi = exp(Eff.hfi),
+  all = exp(Eff.elevation + Eff.slope + Eff.hfi)
+))
+
+## plot 
+
+p.rp1.elev <- ggplot() +
+  gg(rp1$elevation, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Elevation") +
+  coord_equal()
+
+p.rp1.slope <- ggplot() +
+  gg(rp1$slope, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Slope") +
+  coord_equal()
+
+p.rp1.hfi <- ggplot() +
+  gg(rp1$hfi, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Human Footprint Index") +
+  coord_equal()
+
+p.rp1.all <- ggplot() + 
+  gg(rp1$all, mask = ireland_outline) + 
+  theme(legend.position = "bottom") +
+  ggtitle("all covariates effect") +
+  coord_equal()
+
+multiplot(p.rp1.elev, p.rp1.slope, p.rp1.hfi, p.rp1.all, cols = 2)
+
+# predict total abundance 
+Abun.m1 <- predict(
+  m1,
+  ipoints,
+  ~ sum(weight * exp(Eff.elevation + Eff.slope + Eff.hfi))
+)
+
+Abun.m1
+
+### m2
+
+## predict
+
+rp2 <- predict(m2, df, ~ list(
+  # landUse = Eff.landUse,
+  elevation = exp(Eff.elevation),
+  slope = exp(Eff.slope), 
+  hfi = exp(Eff.hfi),
+  smooth = exp(mySmooth),
+  all = exp(Eff.elevation + Eff.slope + Eff.hfi + mySmooth)
+))
+
+
+## plot 
+
+p.rp2.elev <- ggplot() +
+  gg(rp2$elevation, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Elevation") +
+  coord_equal()
+
+p.rp2.slope <- ggplot() +
+  gg(rp2$slope, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Slope") +
+  coord_equal()
+
+p.rp2.hfi <- ggplot() +
+  gg(rp2$hfi, mask = ireland_outline) +
+  theme(legend.position = "bottom") +
+  ggtitle("Human Footprint Index") +
+  coord_equal()
+
+p.rp2.all <- ggplot() + 
+  gg(rp2$all, mask = ireland_outline) + 
+  theme(legend.position = "bottom") +
+  ggtitle("all covariates effect + smooth") +
+  coord_equal()
+
+p.rp2.smooth <- ggplot() + 
+  gg(rp2$smooth, mask = ireland_outline) + 
+  theme(legend.position = "bottom") +
+  ggtitle("Smooth") +
+  coord_equal()
+
+multiplot(p.rp2.elev, p.rp2.slope, p.rp2.hfi, p.rp2.all, 
+          p.rp2.smooth, cols = 3)
+
+#### evaluate effects ####
 
 elev.pred <- predict(
   m1,
-  data = data.frame(ele = seq(min(elev$elevation), max(elev$elevation), length.out = 1000)),
-  formula = ~ elevationEff_eval(ele) # this doesn't fucking work but it should
-)
+  data = data.frame(elevation = seq(min(elevation$elevation), max(elevation$elevation), length.out = 1000)),
+  formula = ~ Eff.elevation_eval(elevation), 
+  exclude = c("Eff.slope", "Eff.hfi")
+  )
+
 
 ggplot(elev.pred) +
-  geom_line(aes(elev, mean)) +
+  geom_line(aes(elevation, mean)) +
   geom_ribbon(
-    aes(elev,
+    aes(elevation,
         ymin = q0.025,
         ymax = q0.975
     ),
     alpha = 0.2
   ) +
   geom_ribbon(
-    aes(elev,
+    aes(elevation,
+        ymin = mean - 1 * sd,
+        ymax = mean + 1 * sd
+    ),
+    alpha = 0.2
+  )
+
+hfi.pred <- predict(
+  m1,
+  data = data.frame(hfi = seq(min(hfi$human_footprint_index), max(hfi$human_footprint_index), length.out = 1000)),
+  formula = ~ Eff.hfi_eval(hfi), 
+  exclude = c("Eff.slope", "Eff.elevation")
+)
+
+
+ggplot(hfi.pred) +
+  geom_line(aes(hfi, mean)) +
+  geom_ribbon(
+    aes(hfi,
+        ymin = q0.025,
+        ymax = q0.975
+    ),
+    alpha = 0.2
+  ) +
+  geom_ribbon(
+    aes(hfi,
+        ymin = mean - 1 * sd,
+        ymax = mean + 1 * sd
+    ),
+    alpha = 0.2
+  )
+
+slope.pred <- predict(
+  m1,
+  data = data.frame(slope = seq(min(slope$slope), max(slope$slope), length.out = 1000)),
+  formula = ~ Eff.slope_eval(slope), 
+  exclude = c("Eff.hfi", "Eff.elevation")
+)
+
+
+ggplot(slope.pred) +
+  geom_line(aes(slope, mean)) +
+  geom_ribbon(
+    aes(slope,
+        ymin = q0.025,
+        ymax = q0.975
+    ),
+    alpha = 0.2
+  ) +
+  geom_ribbon(
+    aes(slope,
         ymin = mean - 1 * sd,
         ymax = mean + 1 * sd
     ),
@@ -219,14 +431,6 @@ ggplot(elev.pred) +
 
 
 
-# predict total abundance 
-Lambda2 <- predict(
-  m1,
-  ipoints,
-  ~ sum(weight * exp(landUseEff + elevationEff + slopeEff + hfiEff))
-)
-
-Lambda2
 
 
 # # model formula
