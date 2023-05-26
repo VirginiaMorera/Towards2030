@@ -1,20 +1,18 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-###############################################
 #### Load and clean badger individual data ####
-###############################################
 
 # load 
-badgers <- read_csv("raw_data/forR_captured_badgers.csv")
-badgers_vacc <- read_csv("raw_data/forR_vacc_badgers_names_removed.csv")
-ireland <- st_read("Data/ireland_ITM.shp")
+badgers <- read_csv("Data/Raw/forR_captured_badgers.csv")
+badgers_vacc <- read_csv("Data/Raw/forR_vacc_badgers_names_removed.csv")
+ireland <- st_read("Data/Other/ireland_ITM.shp")
 
 # remove unnecessary columns and clean
 badgers_clean <- badgers %>% 
   # select columns to retain
-  dplyr::select(-AGE, -GIRTH, -LENGTH, -DATE_SETT_LAST_CHECKED, -COST, -TOTAL_COST, -POSTMORTEM_CODE, 
-                -INVOICE_NO) %>% 
+  dplyr::select(-AGE, -GIRTH, -LENGTH, -DATE_SETT_LAST_CHECKED, -COST, 
+                -TOTAL_COST, -POSTMORTEM_CODE, -INVOICE_NO) %>% 
   # Turn date caught and entered into Date formats
   mutate(DATE_CAUGHT = parse_date(DATE_CAUGHT, "%b %d, %Y %H:%M:%S %p"), 
          DATE_ENTERED = parse_date(DATE_ENTERED, "%b %d, %Y %H:%M:%S %p"), 
@@ -24,12 +22,12 @@ badgers_clean <- badgers %>%
          month_entered = month(DATE_ENTERED, label = TRUE), 
          year_entered = year(DATE_ENTERED), 
          monthyear_ent = paste(month_entered, year_entered, sep = "-"), 
-         monthyear_ent = parse_date(monthyear_ent, "%b-%Y"), 
+         # monthyear_ent = parse_date(monthyear_ent, "%b-%Y"), 
          # month and year of capture
          month_captured = month(DATE_CAUGHT, label = TRUE), 
          year_captured = year(DATE_CAUGHT), 
          monthdyear_capt = paste(month_captured, year_captured, sep = "-"), 
-         monthyear_capt = parse_date(monthdyear_capt, "%b-%Y"), 
+         # monthyear_capt = parse_date(monthdyear_capt, "%b-%Y"), 
          # add columns to match with the vaccination ds
          BADGER_ACTION = "REMOVED", 
          VACCINATION = "N", 
@@ -49,13 +47,13 @@ badgers_vacc_clean <- badgers_vacc %>%
          month_captured = month(DATE_CAUGHT, label = TRUE), 
          year_captured = year(DATE_CAUGHT), 
          monthdyear_capt = paste(month_captured, year_captured, sep = "-"), 
-         monthdyear_capt = parse_date(monthdyear_capt, "%b-%Y"),
+         # monthdyear_capt = parse_date(monthdyear_capt, "%b-%Y"),
          # modify date entered
          DATE_ENTERED = parse_date(DATE_ENTERED, "%b %d, %Y %H:%M:%S %p"),
          month_entered = month(DATE_ENTERED, label = TRUE), 
          year_entered = year(DATE_ENTERED), 
          monthyear_ent = paste(month_entered, year_entered, sep = "-"), 
-         monthyear_ent = parse_date(monthyear_ent, "%b-%Y"),   
+         # monthyear_ent = parse_date(monthyear_ent, "%b-%Y"),   
          # clean and recode Sex
          SEX = recode(SEX, 'F' = "Female", 'FEMALE' = "Female", 
                       'M' = "Male", 'MALE' = "Male", 
@@ -90,11 +88,20 @@ badgers_vacc_clean <- badgers_vacc %>%
 
 badgers_all <- bind_rows(badgers_clean, badgers_vacc_clean)
 
+#### Create capture year from date captured and date entered ####
+
+table(is.na(badgers_all$year_captured))
+table(is.na(badgers_all$year_entered))
+
+badgers_all <- badgers_all %>% 
+  mutate(year_estimated = if_else(is.na(year_captured), 
+                                  year_entered, year_captured), 
+         year_data_origin = if_else(is.na(year_captured), 
+                                    "data_entry_date", "capture_date"))
+
 # saveRDS(badgers_all, file = "Data/badgers_all.RDS")
 
-##########################################
 #### Visualise badger individual data ####
-##########################################
 
 badgers_all <- readRDS("Data/badgers_all.RDS")
 
