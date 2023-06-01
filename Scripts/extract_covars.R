@@ -1,7 +1,7 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-#### load data 1km res
+# load data ####
 env_vars <- stack("Data/Covars/all_covars1km.grd")
 env_vars_km <- projectRaster(env_vars, crs = projKM)
 
@@ -14,13 +14,13 @@ ireland_outline <- ireland %>%
 
 # saveRDS(ireland_outline, "Data/ireland_outline_km.RDS")
 
-#### create 5km raster to resample
+# create empty 5km raster to resample ####
 
 largerRas <- raster(ext = extent(env_vars_km), crs = projKM, resolution = c(5,5))
 
-#### rasters that are factors
+# Resample rasters that are factors ####
 
-##  Land use
+##  Land use ####
 
 # 1 km
 landUse <- env_vars$landCover
@@ -56,7 +56,7 @@ table(landCover_5km@data$landCover)
 
 saveRDS(landCover_5km, file = "Data/landCover_5km.RDS")
 
-##  dominant leaf type
+##  Dominant leaf type ####
 
 # 1 km
 dlt <- env_vars$dominant_leaf_type
@@ -84,7 +84,7 @@ table(dlt_pix_5km@data$dominant_leaf_type)
 
 saveRDS(dlt_pix_5km, file = "Data/dlt_5km.RDS")
 
-##  forest type
+##  Forest type ####
 
 # 1 km
 ft <- env_vars$forest_type
@@ -111,7 +111,7 @@ table(ft_pix_5km@data$forest_type, useNA = "always")
 
 saveRDS(ft_pix_5km, file = "Data/ft_5km.RDS")
 
-#### calculate forest distance
+# Calculate forest distance ####
 
 dist_to_fEdge <- (-1)*env_vars_km$dist_to_fEdge
 
@@ -126,11 +126,39 @@ env_vars_sel <- dropLayer(env_vars_km, c("dist_to_forest", "dist_to_fEdge",
 
 env_vars_sel$forest_distances <- forest_distances
 
-#### save as 1km
+# Save modified stacks ####
 
-saveRDS(env_vars_sel, file = "Data/env_vars_1km.RDS")
+## save as 1km ####
 
-#### resample to 5km and save
+writeRaster(env_vars_sel, filename = "Data/env_vars_1km.grd", format = "raster")
+
+## resample to 5km and save ####
 env_vars_sel_5km <- resample(env_vars_sel, largerRas, method = "bilinear")
 
-saveRDS(env_vars_sel_5km, file = "Data/env_vars_5km.RDS")
+writeRaster(env_vars_sel_5km, filename = "Data/env_vars_5km.grd", format = "raster")
+
+
+# Corine continuous layers ####
+# for some reason if I load them all as a stack it throws an error related to the srs when projecting, so doing them in a loop, projecting to km, and then stacking
+
+lyrs <- list.files(path = "Data/Covars/Corine", pattern='\\.gri$', full.names = T)
+nms <- gsub(".grd", "", list.files(path = "Data/Covars/Corine", pattern='\\.grd$'))
+
+corine <- stack()
+
+for(i in seq_along(lyrs)) {
+  par(mfrow = c(1,2))
+  x <- raster(lyrs[i])
+  plot(x)
+  x@crs <- CRS("EPSG:2157")
+  x2 <- projectRaster(from = x, crs = projKM)
+  plot(x2)
+  par(mfrow = c(1,1))
+  names(x2) <- nms[i]
+  corine <- stack(corine, x2)
+}
+
+plot(corine)
+res(corine)
+
+writeRaster(corine, filename = "Data/corine_5km.grd", format = "raster")
