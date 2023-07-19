@@ -139,26 +139,14 @@ writeRaster(env_vars_sel_5km, filename = "Data/env_vars_5km.grd", format = "rast
 
 
 # Corine continuous layers ####
-# for some reason if I load them all as a stack it throws an error related to the srs when projecting, so doing them in a loop, projecting to km, and then stacking
 
-lyrs <- list.files(path = "Data/Covars/Corine", pattern='\\.gri$', full.names = T)
-nms <- gsub(".grd", "", list.files(path = "Data/Covars/Corine", pattern='\\.grd$'))
+corine <- stack("Data/corine_ireland_1km.grd")
+corineKM <- projectRaster(corine, crs = projKM)
+corineKM <- resample(corineKM, env_vars_km)
+all_covars_1km <- stack(env_vars_km, corineKM)
+writeRaster(all_covars_1km, filename = "Data/all_covars_1km.grd", format = "raster")
 
-corine <- stack()
-
-for(i in seq_along(lyrs)) {
-  par(mfrow = c(1,2))
-  x <- raster(lyrs[i])
-  plot(x)
-  x@crs <- CRS("EPSG:2157")
-  x2 <- projectRaster(from = x, crs = projKM)
-  plot(x2)
-  par(mfrow = c(1,1))
-  names(x2) <- nms[i]
-  corine <- stack(corine, x2)
-}
-
-plot(corine)
-res(corine)
-
-writeRaster(corine, filename = "Data/corine_5km.grd", format = "raster")
+plot(corineKM)
+corine_5k <- resample(corineKM, largerRas, method = "bilinear")
+plot(corine_5k)
+writeRaster(corine_5k, filename = "Data/corine_5km.grd", format = "raster", overwrite = T)
