@@ -46,7 +46,7 @@ samplers <- as_Spatial(samplers)
 
 ## create different integration points dfs ####
 df <- pixels(mesh2, mask = inner_boundary, nx = 72*10, ny = 81*10)
-df <- pixels(mesh2, mask = inner_boundary)
+# df <- pixels(mesh2, mask = inner_boundary)
 ipoints <- ipoints(inner_boundary, mesh2)
 
 ## make sure all projections match because inla is a lil bitch ####
@@ -60,10 +60,11 @@ ipoints@proj4string <- mesh2$crs
 ## plot all data ####
 ggplot() + 
   gg(ireland_outline) + 
-  gg(samplers) + 
-  gg(setts) + 
+  gg(samplers, fill = "pink", alpha = 0.5) + 
+  gg(setts, alpha = 0.5) + 
   coord_equal() + 
-  theme_bw()
+  theme_bw() + 
+  labs(x = "", y = "")
 
 
 # Prepare covars ####
@@ -129,6 +130,1157 @@ water@proj4string <- mesh2$crs
 
 peatbogs <- as(env_vars_scaled$Peatbogs, "SpatialPixelsDataFrame")
 peatbogs@proj4string <- mesh2$crs
+
+
+## Prepare 1D meshes for covars ####
+
+### 1d mesh for elevation ####
+
+# mesh1D_elev <- inla.mesh.1d(seq(min(elevation$elevation)-1, max(elevation$elevation)+1, length.out = 10), 
+#                             degree = 2) 
+# 
+# matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
+#                                      prior.range = c(2.37, 0.1), # 1 third range mesh
+#                                      prior.sigma = c(0.001, 0.1))
+
+### 1d mesh for slope ####
+
+mesh1D_slope <- inla.mesh.1d(seq(min(slope$slope)-1, max(slope$slope)+1, 
+                                 length.out = 10), 
+                             degree = 2) 
+
+matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
+                                      prior.range = c(3.3, 0.01), # 1 third range mesh
+                                      prior.sigma = c(0.1, 0.01))
+
+### 1d mesh for aspect ####
+
+# mesh1D_aspect <- inla.mesh.1d(seq(min(aspect$layer)-1, 
+#                                   max(aspect$layer)+1, 
+#                                   length.out = 10), 
+#                               degree = 2) 
+# 
+# matern1D_aspect <- inla.spde2.pcmatern(mesh1D_aspect,
+#                                        prior.range = c(0.1, 0.01), # 1 third range mesh
+#                                        prior.sigma = c(0.001, 0.01))
+
+### 1d mesh for northness ####
+
+# mesh1D_northness <- inla.mesh.1d(seq(min(northness$layer)-1, 
+#                                   max(northness$layer)+1, 
+#                                   length.out = 10), 
+#                               degree = 2) 
+# 
+# matern1D_northness <- inla.spde2.pcmatern(mesh1D_northness,
+#                                        prior.range = c(0.6, 0.01), # 1 third range mesh
+#                                        prior.sigma = c(0.01, 0.01))
+
+### 1d mesh for eastness ####
+
+mesh1D_eastness <- inla.mesh.1d(seq(min(eastness$layer)-1, 
+                                    max(eastness$layer)+1, 
+                                    length.out = 10), 
+                                degree = 2) 
+
+matern1D_eastness <- inla.spde2.pcmatern(mesh1D_eastness,
+                                         prior.range = c(0.66, 0.1), # 1 third range mesh
+                                         prior.sigma = c(0.01, 0.1))
+
+### 1d mesh for crops ####
+
+mesh1D_crops <- inla.mesh.1d(seq(min(crops$Plantedvegetationandcrops)-1, 
+                                 max(crops$Plantedvegetationandcrops)+1, 
+                                 length.out = 10), 
+                             degree = 2) 
+
+matern1D_crops <- inla.spde2.pcmatern(mesh1D_crops,
+                                      prior.range = c(2.25, 0.1), # 1 third range mesh
+                                      prior.sigma = c(0.01, 0.1))
+
+
+### 1d mesh for tree cover density ####
+
+mesh1D_tcd <- inla.mesh.1d(seq(min(tcd$tree_cover_density)-1, 
+                               max(tcd$tree_cover_density)+1, 
+                               length.out = 10), 
+                           degree = 2) 
+
+matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
+                                    prior.range = c(1, 0.01), # 1 third range mesh
+                                    prior.sigma = c(0.01, 0.01))
+
+### 1d mesh for small woody features ####
+
+mesh1D_swf <- inla.mesh.1d(seq(min(swf$small_woody_features)-1, 
+                               max(swf$small_woody_features)+1, 
+                               length.out = 10), 
+                           degree = 2) 
+
+matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
+                                    prior.range = c(2.67, 0.1), # 1 third range mesh
+                                    prior.sigma = c(0.01, 0.1))
+
+
+### 1d mesh for pastures ####
+
+mesh1D_pastures <- inla.mesh.1d(seq(min(pastures$Pastures)-1, 
+                                    max(pastures$Pastures)+1, 
+                                    length.out = 10), 
+                                degree = 2) 
+
+matern1D_pastures <- inla.spde2.pcmatern(mesh1D_pastures,
+                                         prior.range = c(3, 0.01), # force a longer range, and same as grasslands
+                                         prior.sigma = c(0.01, 0.01))
+
+### 1d mesh for artificial surfaces ####
+
+mesh1D_artificial <- inla.mesh.1d(seq(min(artificial$Artificialsurfaces)-1, 
+                                      max(artificial$Artificialsurfaces)+1, 
+                                      length.out = 10), 
+                                  degree = 2) 
+
+matern1D_artificial <- inla.spde2.pcmatern(mesh1D_artificial,
+                                           prior.range = c(0.5, 0.01), # 1 third range mesh
+                                           prior.sigma = c(0.1, 0.01))
+
+### 1d mesh for grasslands ####
+
+mesh1D_grassland <- inla.mesh.1d(seq(min(grassland$Naturalgrasslands)-1, 
+                                     max(grassland$Naturalgrasslands)+1, 
+                                     length.out = 10), 
+                                 degree = 2) 
+
+matern1D_grassland <- inla.spde2.pcmatern(mesh1D_grassland,
+                                          prior.range = c(1, 0.1), # force a longer range together with pastures
+                                          prior.sigma = c(0.01, 0.1))
+
+### 1d mesh for moors ####
+
+mesh1D_moors <- inla.mesh.1d(seq(min(moors$Moorsandheathland)-1, 
+                                 max(moors$Moorsandheathland)+1, 
+                                 length.out = 10), 
+                             degree = 2) 
+
+matern1D_moors <- inla.spde2.pcmatern(mesh1D_grassland,
+                                      prior.range = c(2, 0.01), # 1 third range mesh
+                                      prior.sigma = c(0.001, 0.01))
+
+### 1d mesh for shrub ####
+
+mesh1D_shrub <- inla.mesh.1d(seq(min(shrub$Transitionalwoodland.shrub)-1, 
+                                 max(shrub$Transitionalwoodland.shrub)+1, 
+                                 length.out = 10), 
+                             degree = 2) 
+
+matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
+                                      prior.range = c(1, 0.01), # 1 third range mesh
+                                      prior.sigma = c(0.001, 0.01))
+
+### 1d mesh for peatbogs ####
+
+mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogs$Peatbogs)-1, 
+                                    max(peatbogs$Peatbogs)+1, 
+                                    length.out = 10), 
+                                degree = 2) 
+
+matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
+                                         prior.range = c(1.6, 0.01), # 1 third range mesh
+                                         prior.sigma = c(0.01, 0.01))
+
+
+# M4 non-linear covar effects + spde ####
+
+## Set up spde ####
+
+matern2D <- inla.spde2.pcmatern(mesh2,
+                                prior.range = c(90, 0.1),  #1/3 y coordinate
+                                prior.sigma = c(0.001, 0.1))
+
+
+## Formula ####
+
+nonlinear_SPDE <- coordinates ~  Intercept(1)  +
+  Eff.elevation(elevation, model = "linear") +
+  Eff.slope(slope, model = matern1D_slope) +
+  Eff.eastness(eastness, model = "linear") +
+  Eff.northness(northness, model = "linear") +
+  Eff.tcd(tcd, model = "linear") +
+  Eff.swf(swf, model = matern1D_swf) +
+  Eff.crops(crops, model = "linear") +
+  Eff.pasture(pastures, model = matern1D_pastures) +
+  Eff.artificial(artificial, model = matern1D_artificial) +
+  Eff.grasslands(grassland, model = "linear") +
+  Eff.moors(moors, model = "linear") +
+  Eff.shrub(shrub, model = "linear") +
+  Eff.peatbog(peatbogs, model = "linear") +
+  Eff.smooth(coordinates, model = matern2D) + 
+  NULL
+
+## Run model ####
+m4 <- lgcp(nonlinear_SPDE,
+           setts,
+           domain = list(coordinates = mesh2),
+           samplers = samplers)
+
+# saveRDS(m4, file = "Outputs/main_sett_model_1km/final_main_sett_model.RDS")
+summary(m4)
+
+## Predict linear scale ####
+
+### predict ####
+
+lp4 <- predict(m4, df, ~ list(
+  elevation = Eff.elevation,
+  slope = Eff.slope,
+  northness = Eff.northness,
+  eastness = Eff.eastness,
+  crops = Eff.crops,
+  tcd = Eff.tcd,
+  swf = Eff.swf,
+  pastures = Eff.pasture,
+  artificial = Eff.artificial,
+  grassland = Eff.grasslands,
+  moors = Eff.moors,
+  shrub = Eff.shrub,
+  peatbogs = Eff.peatbog,
+  spfield = Eff.smooth,
+  all = Intercept + 
+    Eff.elevation +
+    Eff.slope +
+    Eff.northness +
+    Eff.eastness +
+    Eff.crops +
+    Eff.tcd +
+    Eff.swf +
+    Eff.pasture +
+    Eff.artificial +
+    Eff.grasslands +
+    Eff.moors +
+    Eff.shrub +
+    Eff.peatbog +
+    Eff.smooth))
+
+saveRDS(lp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
+
+### plot #### 
+
+p.lp4.elev <- ggplot() +
+  gg(lp4$elevation, mask = ireland_outline) +
+  ggtitle("Elevation") +
+  coord_equal() +
+  theme_bw() +
+  # scale_fill_carto_c(type = "quantitative", palette = "Sunset", direction = -1) + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.slope <- ggplot() +
+  gg(lp4$slope, mask = ireland_outline) +
+  ggtitle("Slope") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.northness <- ggplot() +
+  gg(lp4$northness, mask = ireland_outline) +
+  ggtitle("Northness") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.eastness <- ggplot() +
+  gg(lp4$eastness, mask = ireland_outline) +
+  ggtitle("Eastness") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.crops <- ggplot() +
+  gg(lp4$crops, mask = ireland_outline) +
+  ggtitle("Planted vegetations and crops") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.tcd <- ggplot() +
+  gg(lp4$tcd, mask = ireland_outline) +
+  ggtitle("Tree cover density") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.swf <- ggplot() +
+  gg(lp4$swf, mask = ireland_outline) +
+  ggtitle("Small woody features") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.pastures <- ggplot() +
+  gg(lp4$pastures, mask = ireland_outline) +
+  ggtitle("Pastures") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.artificial <- ggplot() +
+  gg(lp4$artificial, mask = ireland_outline) +
+  ggtitle("Artificial surfaces") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.grassland <- ggplot() +
+  gg(lp4$grassland, mask = ireland_outline) +
+  ggtitle("Grasslands") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.moors <- ggplot() +
+  gg(lp4$moors, mask = ireland_outline) +
+  ggtitle("Moors and heathland") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.lp4.shrub <- ggplot() +
+  gg(lp4$shrub, mask = ireland_outline) +
+  ggtitle("Transitional forest and shrub") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.peatbogs <- ggplot() +
+  gg(lp4$peatbogs, mask = ireland_outline) +
+  ggtitle("Peat bogs") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.smooth <- ggplot() +
+  gg(lp4$spfield, mask = ireland_outline) +
+  labs(title = "Spatial field", x = "", y = "") + 
+  # ggtitle("Spatial field") +
+  coord_equal() + 
+  theme_bw() + 
+  # scale_fill_viridis_c(option = "A") +
+  scale_fill_gradientn(colours=brewer.pal(7,"RdBu")) + 
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.lp4.all <- ggplot() + 
+  gg(lp4$all, mask = ireland_outline) + 
+  ggtitle("all covariates effect") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+multiplot(
+  p.lp4.elev,
+  p.lp4.slope, 
+  p.lp4.northness,
+  p.lp4.eastness,
+  p.lp4.crops,
+  p.lp4.tcd,
+  p.lp4.swf,
+  p.lp4.pastures,
+  p.lp4.artificial,
+  p.lp4.grassland,
+  p.lp4.moors,
+  p.lp4.shrub,
+  p.lp4.peatbogs,
+  cols = 4) 
+
+multiplot(p.lp4.smooth, 
+          p.lp4.all, cols = 2)
+
+## Predict response scale ####
+
+### predict ####
+
+rp4 <- predict(m4, df, ~ list(
+  elevation = exp(Eff.elevation),
+  slope = exp(Eff.slope),
+  northness = exp(Eff.northness),
+  eastness = exp(Eff.eastness),
+  crops = exp(Eff.crops),
+  tcd = exp(Eff.tcd),
+  swf = exp(Eff.swf),
+  pastures = exp(Eff.pasture),
+  artificial = exp(Eff.artificial),
+  grassland = exp(Eff.grasslands),
+  moors = exp(Eff.moors),
+  shrub = exp(Eff.shrub),
+  peatbogs = exp(Eff.peatbog),
+  spfield = exp(Eff.smooth),
+  all = exp(Intercept + 
+              Eff.elevation +
+              Eff.slope +
+              Eff.northness +
+              Eff.eastness + 
+              Eff.crops +
+              Eff.tcd +
+              Eff.swf +
+              Eff.pasture + 
+              Eff.artificial +
+              Eff.grasslands +
+              Eff.moors +
+              Eff.shrub +
+              Eff.peatbog +
+              Eff.smooth)))
+
+saveRDS(rp4, file = "Outputs/main_sett_model_1km/m4_rp.RDS")
+### plot #### 
+
+p.rp4.elev <- ggplot() +
+  gg(rp4$elevation, mask = ireland_outline) +
+  ggtitle("Elevation") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.slope <- ggplot() +
+  gg(rp4$slope, mask = ireland_outline) +
+  ggtitle("Slope") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.northness <- ggplot() +
+  gg(rp4$northness, mask = ireland_outline) +
+  ggtitle("Northness") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.eastness <- ggplot() +
+  gg(rp4$eastness, mask = ireland_outline) +
+  ggtitle("Eastness") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.crops <- ggplot() +
+  gg(rp4$crops, mask = ireland_outline) +
+  ggtitle("crops") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.tcd <- ggplot() +
+  gg(rp4$tcd, mask = ireland_outline) +
+  ggtitle("Tree cover density") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.swf <- ggplot() +
+  gg(rp4$swf, mask = ireland_outline) +
+  ggtitle("Small woody features") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.pastures <- ggplot() +
+  gg(rp4$pastures, mask = ireland_outline) +
+  ggtitle("Pastures") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.artificial <- ggplot() +
+  gg(rp4$artificial, mask = ireland_outline) +
+  ggtitle("Artificial surfaces") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.grassland <- ggplot() +
+  gg(rp4$grassland, mask = ireland_outline) +
+  ggtitle("Grasslands") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.moors <- ggplot() +
+  gg(rp4$moors, mask = ireland_outline) +
+  ggtitle("Moors and heathland") +
+  coord_equal() +
+  theme_bw() +
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") +
+  NULL
+
+p.rp4.shrub <- ggplot() +
+  gg(rp4$shrub, mask = ireland_outline) +
+  ggtitle("Transitional forest and shrub") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.peatbogs <- ggplot() +
+  gg(rp4$peatbogs, mask = ireland_outline) +
+  ggtitle("Peat bogs") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+p.rp4.smooth <- ggplot() +
+  gg(rp4$spfield, mask = ireland_outline) +
+  ggtitle("Spatial field") +
+  coord_equal() + 
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  # theme(legend.position = "bottom") + 
+  NULL
+
+(p.rp4.all <- ggplot() + 
+    gg(rp4$all, mask = ireland_outline) + 
+    labs(title = "Predicted sett abundance per square km", x = "", y = "") + 
+    coord_equal() + 
+    theme_bw() + 
+    scale_fill_viridis_c(option = "A") +
+    # theme(legend.position = "bottom") + 
+    NULL)
+
+multiplot(
+  p.rp4.elev,
+  p.rp4.slope, 
+  # p.rp4.northness,
+  p.rp4.eastness,
+  p.rp4.crops,
+  # p.rp4.tcd,
+  p.rp4.swf,
+  p.rp4.pastures, 
+  p.rp4.artificial,
+  p.rp4.grassland,
+  # p.rp4.moors,
+  p.rp4.shrub,
+  p.rp4.peatbogs,
+  cols = 4)
+
+multiplot(p.rp4.all, 
+          p.lp4.smooth, 
+          cols = 2)
+
+pred_respRD <- raster(rp4$all['mean'])
+
+pred_resp <- mask(pred_respRD, ireland_outline)
+plot(pred_resp)
+writeRaster(pred_resp, 
+            filename = "badger_sett_pprediction.grd",
+            overwrite = T)
+
+
+## Predict total abundance ####
+
+(Abun.m4 <- predict(
+  m4,
+  ipoints,
+  ~ sum(weight * exp(Intercept + 
+                       Eff.elevation + 
+                       Eff.eastness +
+                       Eff.northness +
+                       Eff.slope +
+                       Eff.crops +
+                       Eff.tcd +
+                       Eff.swf +
+                       Eff.shrub + 
+                       Eff.moors +
+                       Eff.peatbog + 
+                       Eff.artificial +
+                       Eff.grasslands +
+                       Eff.pasture))))
+
+## Spde and cor covariance plots ####
+
+spde.range <- spde.posterior(m4, "Eff.smooth", what = "range")
+spde.logvar <- spde.posterior(m4, "Eff.smooth", what = "log.variance")
+range.plot <- plot(spde.range)
+var.plot <- plot(spde.logvar)
+
+multiplot(range.plot, var.plot)
+
+corplot <- plot(spde.posterior(m4, "Eff.smooth", what = "matern.correlation"))
+covplot <- plot(spde.posterior(m4, "Eff.smooth", what = "matern.covariance"))
+
+multiplot(covplot, corplot)
+
+## Evaluate effects ####
+
+### predict ####
+
+elev.pred <- predict(
+  m4,
+  data = data.frame(elevation = seq(min(elevation$elevation), 
+                                    max(elevation$elevation), 
+                                    length.out = 1000)),
+  formula = ~ Eff.elevation_eval(elevation), 
+  exclude = c(
+    # "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+pasture.pred <- predict(
+  m4,
+  data = data.frame(pastures = seq(min(pastures$Pastures), 
+                                   max(pastures$Pastures), 
+                                   length.out = 1000)),
+  formula = ~ Eff.pasture_eval(pastures), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    # "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+
+peatbogs.pred <- predict(
+  m4,
+  data = data.frame(peatbogs = seq(min(peatbogs$Peatbogs), 
+                                   max(peatbogs$Peatbogs), 
+                                   length.out = 1000)),
+  formula = ~ Eff.peatbog_eval(peatbogs), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    # "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+moors.pred <- predict(
+  m4,
+  data = data.frame(moors = seq(min(moors$Moorsandheathland),
+                                max(moors$Moorsandheathland),
+                                length.out = 1000)),
+  formula = ~ Eff.moors_eval(moors),
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub",
+    # "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial",
+    "Eff.smooth"
+  ))
+
+grassland.pred <- predict(
+  m4,
+  data = data.frame(grassland = seq(min(grassland$Naturalgrasslands),
+                                    max(grassland$Naturalgrasslands),
+                                    length.out = 1000)),
+  formula = ~ Eff.grasslands_eval(grassland),
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    # "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+artificial.pred <- predict(
+  m4,
+  data = data.frame(artificial = seq(min(artificial$Artificialsurfaces), 
+                                     max(artificial$Artificialsurfaces), 
+                                     length.out = 1000)),
+  formula = ~ Eff.artificial_eval(artificial), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    # "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+crops.pred <- predict(
+  m4,
+  data = data.frame(crops = seq(min(crops$Plantedvegetationandcrops), 
+                                max(crops$Plantedvegetationandcrops), 
+                                length.out = 1000)),
+  formula = ~ Eff.crops_eval(crops), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    # "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+swf.pred <- predict(
+  m4,
+  data = data.frame(swf = seq(min(swf$small_woody_features), 
+                              max(swf$small_woody_features), 
+                              length.out = 1000)),
+  formula = ~ Eff.swf_eval(swf), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    # "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+tcd.pred <- predict(
+  m4,
+  data = data.frame(tcd = seq(min(tcd$tree_cover_density),
+                              max(tcd$tree_cover_density),
+                              length.out = 1000)),
+  formula = ~ Eff.tcd_eval(tcd),
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    # "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub",
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial",
+    "Eff.smooth"
+  ))
+
+northness.pred <- predict(
+  m4,
+  data = data.frame(northness = seq(min(northness$layer),
+                                    max(northness$layer),
+                                    length.out = 1000)),
+  formula = ~ Eff.northness_eval(northness),
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    # "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub",
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial",
+    "Eff.smooth"
+  ))
+
+eastness.pred <- predict(
+  m4,
+  data = data.frame(eastness = seq(min(eastness$layer), 
+                                   max(eastness$layer), 
+                                   length.out = 1000)),
+  formula = ~ Eff.eastness_eval(eastness), 
+  exclude = c(
+    "Eff.elevation",
+    # "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+slope.pred <- predict(
+  m4,
+  data = data.frame(slope = seq(min(slope$slope), 
+                                max(slope$slope), 
+                                length.out = 1000)),
+  formula = ~ Eff.slope_eval(slope), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    # "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
+### plot ####
+
+eval.elev <- ggplot(elev.pred) +
+  geom_line(aes(elevation, mean)) +
+  geom_ribbon(aes(elevation,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Elevation", y = "Effect") + 
+  geom_ribbon(aes(elevation,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$elevation[], na.rm = T), 
+                                  max(env_vars_scaled$elevation[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$elevation[], na.rm = T), 
+                                        max(env_vars$elevation[], na.rm = T), 
+                                        length.out = 10), 0))
+
+eval.pasture <- ggplot(pasture.pred) +
+  geom_line(aes(pastures, mean)) +
+  geom_ribbon(aes(pastures,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of pastures", y = "Effect") + 
+  geom_ribbon(aes(pastures,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Pastures[], na.rm = T), 
+                                  max(env_vars_scaled$Pastures[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Pastures[], na.rm = T), 
+                                             max(env_vars$Pastures[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+eval.peatbogs <- ggplot(peatbogs.pred) +
+  geom_line(aes(peatbogs, mean)) +
+  geom_ribbon(aes(peatbogs,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of peatbogs", y = "Effect") + 
+  geom_ribbon(aes(peatbogs,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Peatbogs[], na.rm = T), 
+                                  max(env_vars_scaled$Peatbogs[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Peatbogs[], na.rm = T), 
+                                             max(env_vars$Peatbogs[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+
+eval.moors <- ggplot(moors.pred) +
+  geom_line(aes(moors, mean)) +
+  geom_ribbon(aes(moors,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of moors", y = "Effect") + 
+  geom_ribbon(aes(moors,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Moorsandheathland[], na.rm = T), 
+                                  max(env_vars_scaled$Moorsandheathland[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Moorsandheathland[], na.rm = T), 
+                                             max(env_vars$Moorsandheathland[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+
+eval.grasslands <- ggplot(grassland.pred) +
+  geom_line(aes(grassland, mean)) +
+  geom_ribbon(aes(grassland,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of grasslands", y = "Effect") + 
+  geom_ribbon(aes(grassland,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Naturalgrasslands[], na.rm = T), 
+                                  max(env_vars_scaled$Naturalgrasslands[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Naturalgrasslands[], na.rm = T), 
+                                             max(env_vars$Naturalgrasslands[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+
+eval.artificial <- ggplot(artificial.pred) +
+  geom_line(aes(artificial, mean)) +
+  geom_ribbon(aes(artificial,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of artificial surfaces", y = "Effect") + 
+  geom_ribbon(aes(artificial,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Artificialsurfaces[], na.rm = T), 
+                                  max(env_vars_scaled$Artificialsurfaces[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Artificialsurfaces[], na.rm = T), 
+                                             max(env_vars$Artificialsurfaces[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+
+eval.crops <- ggplot(crops.pred) +
+  geom_line(aes(crops, mean)) +
+  geom_ribbon(aes(crops,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of crops", y = "Effect") + 
+  geom_ribbon(aes(crops,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Plantedvegetationandcrops[], na.rm = T), 
+                                  max(env_vars_scaled$Plantedvegetationandcrops[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$Plantedvegetationandcrops[], na.rm = T), 
+                                             max(env_vars$Plantedvegetationandcrops[], na.rm = T), 
+                                             length.out = 10)), 0))
+
+
+eval.swf <- ggplot(swf.pred) +
+  geom_line(aes(swf, mean)) +
+  geom_ribbon(aes(swf,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of small woody features", y = "Effect") + 
+  geom_ribbon(aes(swf,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$small_woody_features[], na.rm = T), 
+                                  max(env_vars_scaled$small_woody_features[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$small_woody_features[], na.rm = T), 
+                                        max(env_vars$small_woody_features[], na.rm = T), 
+                                        length.out = 10), 0))
+
+
+eval.tcd <- ggplot(tcd.pred) +
+  geom_line(aes(tcd, mean)) +
+  geom_ribbon(aes(tcd,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Tree cover density", y = "Effect") + 
+  geom_ribbon(aes(tcd,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) +
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$tree_cover_density[], na.rm = T), 
+                                  max(env_vars_scaled$tree_cover_density[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$tree_cover_density[], na.rm = T), 
+                                        max(env_vars$tree_cover_density[], na.rm = T), 
+                                        length.out = 10), 0))
+
+eval.northness <- ggplot(northness.pred) +
+  geom_line(aes(northness, mean)) +
+  geom_ribbon(aes(northness,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Northness", y = "Effect") + 
+  geom_ribbon(aes(northness,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(northness@data, na.rm = T), 
+                                  max(northness@data, na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(northness@data, na.rm = T), 
+                                        max(northness@data, na.rm = T), 
+                                        length.out = 10), 2))
+
+eval.eastness <- ggplot(eastness.pred) +
+  geom_line(aes(eastness, mean)) +
+  geom_ribbon(aes(eastness,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Eastness", y = "Effect") + 
+  geom_ribbon(aes(eastness,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(eastness@data, na.rm = T), 
+                                  max(eastness@data, na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(eastness@data, na.rm = T), 
+                                        max(eastness@data, na.rm = T), 
+                                        length.out = 10), 2))
+
+
+eval.slope <- ggplot(slope.pred) +
+  geom_line(aes(slope, mean)) +
+  geom_ribbon(aes(slope,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Slope", y = "Effect") + 
+  geom_ribbon(aes(slope,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$slope[], na.rm = T), 
+                                  max(env_vars_scaled$slope[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$slope[], na.rm = T), 
+                                        max(env_vars$slope[], na.rm = T), 
+                                        length.out = 10), 0))
+multiplot(
+  eval.elev,
+  eval.pasture,
+  eval.peatbogs,
+  eval.moors,
+  eval.grasslands,
+  eval.artificial, 
+  eval.crops,
+  eval.swf,
+  eval.tcd,
+  eval.eastness,
+  eval.northness,
+  eval.slope,
+  cols = 2
+)
+
+#~~~~~~~~~~~~~~~####
+# BACKUP MODELS ####
+#~~~~~~~~~~~~~~~####
 
 # M1: Very simple linear non-spatial model ####
 
@@ -513,160 +1665,6 @@ Abun.m1
 
 # M2: Non-linear covar effects but not spatial ####
   
-## Prepare 1D meshes for covars ####
-  
-### 1d mesh for elevation ####
-
-# mesh1D_elev <- inla.mesh.1d(seq(min(elevation$elevation)-1, max(elevation$elevation)+1, length.out = 10), 
-#                             degree = 2) 
-# 
-# matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-#                                      prior.range = c(2.37, 0.1), # 1 third range mesh
-#                                      prior.sigma = c(0.001, 0.1))
-
-### 1d mesh for slope ####
-
-mesh1D_slope <- inla.mesh.1d(seq(min(slope$slope)-1, max(slope$slope)+1, 
-                                 length.out = 10), 
-                             degree = 2) 
-
-matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(3.3, 0.01), # 1 third range mesh
-                                      prior.sigma = c(0.1, 0.01))
-
-### 1d mesh for aspect ####
-
-# mesh1D_aspect <- inla.mesh.1d(seq(min(aspect$layer)-1, 
-#                                   max(aspect$layer)+1, 
-#                                   length.out = 10), 
-#                               degree = 2) 
-# 
-# matern1D_aspect <- inla.spde2.pcmatern(mesh1D_aspect,
-#                                        prior.range = c(0.1, 0.01), # 1 third range mesh
-#                                        prior.sigma = c(0.001, 0.01))
-
-### 1d mesh for northness ####
-
-# mesh1D_northness <- inla.mesh.1d(seq(min(northness$layer)-1, 
-#                                   max(northness$layer)+1, 
-#                                   length.out = 10), 
-#                               degree = 2) 
-# 
-# matern1D_northness <- inla.spde2.pcmatern(mesh1D_northness,
-#                                        prior.range = c(0.6, 0.01), # 1 third range mesh
-#                                        prior.sigma = c(0.01, 0.01))
-
-### 1d mesh for eastness ####
-
-mesh1D_eastness <- inla.mesh.1d(seq(min(eastness$layer)-1, 
-                                  max(eastness$layer)+1, 
-                                  length.out = 10), 
-                              degree = 2) 
-
-matern1D_eastness <- inla.spde2.pcmatern(mesh1D_eastness,
-                                       prior.range = c(0.66, 0.1), # 1 third range mesh
-                                       prior.sigma = c(0.01, 0.1))
-
-### 1d mesh for crops ####
-
-mesh1D_crops <- inla.mesh.1d(seq(min(crops$Plantedvegetationandcrops)-1, 
-                                 max(crops$Plantedvegetationandcrops)+1, 
-                                 length.out = 10), 
-                             degree = 2) 
-
-matern1D_crops <- inla.spde2.pcmatern(mesh1D_crops,
-                                      prior.range = c(2.25, 0.1), # 1 third range mesh
-                                      prior.sigma = c(0.01, 0.1))
-
-
-### 1d mesh for tree cover density ####
-
-mesh1D_tcd <- inla.mesh.1d(seq(min(tcd$tree_cover_density)-1, 
-                               max(tcd$tree_cover_density)+1, 
-                               length.out = 10), 
-                           degree = 2) 
-
-matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-                                    prior.range = c(1, 0.01), # 1 third range mesh
-                                    prior.sigma = c(0.01, 0.01))
-
-### 1d mesh for small woody features ####
-
-mesh1D_swf <- inla.mesh.1d(seq(min(swf$small_woody_features)-1, 
-                               max(swf$small_woody_features)+1, 
-                               length.out = 10), 
-                           degree = 2) 
-
-matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-                                    prior.range = c(2.67, 0.1), # 1 third range mesh
-                                    prior.sigma = c(0.01, 0.1))
-
-
-### 1d mesh for pastures ####
-
-mesh1D_pastures <- inla.mesh.1d(seq(min(pastures$Pastures)-1, 
-                                    max(pastures$Pastures)+1, 
-                                    length.out = 10), 
-                                degree = 2) 
-
-matern1D_pastures <- inla.spde2.pcmatern(mesh1D_pastures,
-                                         prior.range = c(3, 0.01), # force a longer range, and same as grasslands
-                                         prior.sigma = c(0.01, 0.01))
-
-### 1d mesh for artificial surfaces ####
-
-mesh1D_artificial <- inla.mesh.1d(seq(min(artificial$Artificialsurfaces)-1, 
-                                      max(artificial$Artificialsurfaces)+1, 
-                                      length.out = 10), 
-                                  degree = 2) 
-
-matern1D_artificial <- inla.spde2.pcmatern(mesh1D_artificial,
-                                           prior.range = c(0.5, 0.01), # 1 third range mesh
-                                           prior.sigma = c(0.1, 0.01))
-
-### 1d mesh for grasslands ####
-
-mesh1D_grassland <- inla.mesh.1d(seq(min(grassland$Naturalgrasslands)-1, 
-                                     max(grassland$Naturalgrasslands)+1, 
-                                     length.out = 10), 
-                                 degree = 2) 
-
-matern1D_grassland <- inla.spde2.pcmatern(mesh1D_grassland,
-                                          prior.range = c(1, 0.1), # force a longer range together with pastures
-                                          prior.sigma = c(0.01, 0.1))
-
-### 1d mesh for moors ####
-
-mesh1D_moors <- inla.mesh.1d(seq(min(moors$Moorsandheathland)-1, 
-                                 max(moors$Moorsandheathland)+1, 
-                                 length.out = 10), 
-                             degree = 2) 
-
-matern1D_moors <- inla.spde2.pcmatern(mesh1D_grassland,
-                                      prior.range = c(2, 0.01), # 1 third range mesh
-                                      prior.sigma = c(0.001, 0.01))
-
-### 1d mesh for shrub ####
-
-mesh1D_shrub <- inla.mesh.1d(seq(min(shrub$Transitionalwoodland.shrub)-1, 
-                                 max(shrub$Transitionalwoodland.shrub)+1, 
-                                 length.out = 10), 
-                             degree = 2) 
-
-matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
-                                      prior.range = c(1, 0.01), # 1 third range mesh
-                                      prior.sigma = c(0.001, 0.01))
-
-### 1d mesh for peatbogs ####
-
-mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogs$Peatbogs)-1, 
-                                    max(peatbogs$Peatbogs)+1, 
-                                    length.out = 10), 
-                                degree = 2) 
-
-matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
-                                         prior.range = c(1.6, 0.01), # 1 third range mesh
-                                         prior.sigma = c(0.01, 0.01))
 
 ## Formula ####
 nonlinear_nonSPDE <- coordinates ~  Intercept  +
@@ -1573,983 +2571,4 @@ corplot <- plot(spde.posterior(m3, "Eff.smooth", what = "matern.correlation"))
 covplot <- plot(spde.posterior(m3, "Eff.smooth", what = "matern.covariance"))
 
 multiplot(covplot, corplot)
-
-# M4 non-linear covar effects + spde ####
-
-## Set up spde ####
-
-
-matern2D <- inla.spde2.pcmatern(mesh2,
-                                prior.range = c(90, 0.1),  #1/3 y coordinate
-                                prior.sigma = c(0.001, 0.1))
-
-
-## Formula ####
-
-nonlinear_SPDE <- coordinates ~  Intercept  +
-  Eff.elevation(elevation, model = "linear") +
-  Eff.slope(slope, model = matern1D_slope) +
-  Eff.eastness(eastness, model = "linear") +
-  Eff.northness(northness, model = "linear") +
-  Eff.tcd(tcd, model = "linear") +
-  Eff.swf(swf, model = matern1D_swf) +
-  Eff.crops(crops, model = "linear") +
-  Eff.pasture(pastures, model = matern1D_pastures) +
-  Eff.artificial(artificial, model = matern1D_artificial) +
-  Eff.grasslands(grassland, model = "linear") +
-  Eff.moors(moors, model = "linear") +
-  Eff.shrub(shrub, model = "linear") +
-  Eff.peatbog(peatbogs, model = "linear") +
-  Eff.smooth(coordinates, model = matern2D) + 
-  NULL
-
-## Run model ####
-m4 <- lgcp(nonlinear_SPDE,
-           setts,
-           domain = list(coordinates = mesh2),
-           samplers = samplers)
-
-# saveRDS(m4, file = "Outputs/sett_model_5km_res/final_sett_model_1km_swf_lin.RDS")
-summary(m4)
-m4 <- readRDS("Outputs/sett_model_5km_res/final_sett_model_5km_covars.RDS")
-## Predict linear scale ####
-
-### predict ####
-
-lp4 <- predict(m4, df, ~ list(
-  elevation = Eff.elevation,
-  slope = Eff.slope,
-  northness = Eff.northness,
-  eastness = Eff.eastness,
-  crops = Eff.crops,
-  tcd = Eff.tcd,
-  swf = Eff.swf,
-  pastures = Eff.pasture,
-  artificial = Eff.artificial,
-  grassland = Eff.grasslands,
-  moors = Eff.moors,
-  shrub = Eff.shrub,
-  peatbogs = Eff.peatbog,
-  spfield = Eff.smooth,
-  all = Intercept + 
-    Eff.elevation +
-    Eff.slope +
-    Eff.northness +
-    Eff.eastness +
-    Eff.crops +
-    Eff.tcd +
-    Eff.swf +
-    Eff.pasture +
-    Eff.artificial +
-    Eff.grasslands +
-    Eff.moors +
-    Eff.shrub +
-    Eff.peatbog +
-    Eff.smooth))
-
-saveRDS(lp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
-lp4 <- readRDS("Outputs/sett_model_5km_res/final_sett_model_5km_covars_lp.RDS")
-### plot #### 
-
-p.lp4.elev <- ggplot() +
-  gg(lp4$elevation, mask = ireland_outline) +
-  ggtitle("Elevation") +
-  coord_equal() +
-  theme_bw() +
-  # scale_fill_carto_c(type = "quantitative", palette = "Sunset", direction = -1) + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") +
-  NULL
-
-p.lp4.slope <- ggplot() +
-  gg(lp4$slope, mask = ireland_outline) +
-  ggtitle("Slope") +
-  coord_equal() +
-  theme_bw() +
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") +
-  NULL
-
-# p.lp4.northness <- ggplot() +
-#   gg(lp4$northness, mask = ireland_outline) +
-#   ggtitle("Northness") +
-#   coord_equal() + 
-#   theme_bw() + 
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") + 
-#   NULL
-
-p.lp4.eastness <- ggplot() +
-  gg(lp4$eastness, mask = ireland_outline) +
-  ggtitle("Eastness") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.crops <- ggplot() +
-  gg(lp4$crops, mask = ireland_outline) +
-  ggtitle("Planted vegetations and crops") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-# p.lp4.tcd <- ggplot() +
-#   gg(lp4$tcd, mask = ireland_outline) +
-#   ggtitle("Tree cover density") +
-#   coord_equal() + 
-#   theme_bw() + 
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") + 
-#   NULL
-
-p.lp4.swf <- ggplot() +
-  gg(lp4$swf, mask = ireland_outline) +
-  ggtitle("Small woody features") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.pastures <- ggplot() +
-  gg(lp4$pastures, mask = ireland_outline) +
-  ggtitle("Pastures") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.artificial <- ggplot() +
-  gg(lp4$artificial, mask = ireland_outline) +
-  ggtitle("Artificial surfaces") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.grassland <- ggplot() +
-  gg(lp4$grassland, mask = ireland_outline) +
-  ggtitle("Grasslands") +
-  coord_equal() +
-  theme_bw() +
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") +
-  NULL
-
-# p.lp4.moors <- ggplot() +
-#   gg(lp4$moors, mask = ireland_outline) +
-#   ggtitle("Moors and heathland") +
-#   coord_equal() + 
-#   theme_bw() + 
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") + 
-#   NULL
-
-p.lp4.shrub <- ggplot() +
-  gg(lp4$shrub, mask = ireland_outline) +
-  ggtitle("Transitional forest and shrub") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.peatbogs <- ggplot() +
-  gg(lp4$peatbogs, mask = ireland_outline) +
-  ggtitle("Peat bogs") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.smooth <- ggplot() +
-  gg(lp4$spfield, mask = ireland_outline) +
-  ggtitle("Spatial field") +
-  coord_equal() + 
-  theme_bw() + 
-  # scale_fill_viridis_c(option = "A") +
-  scale_fill_gradientn(colours=brewer.pal(7,"RdBu")) + 
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.lp4.all <- ggplot() + 
-  gg(lp4$all, mask = ireland_outline) + 
-  ggtitle("all covariates effect") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-multiplot(
-  p.lp4.elev,
-  p.lp4.slope, 
-  # p.lp4.northness,
-  p.lp4.eastness,
-  p.lp4.crops,
-  # p.lp4.tcd,
-  p.lp4.swf,
-  p.lp4.pastures,
-  p.lp4.artificial,
-  p.lp4.grassland,
-  # p.lp4.moors,
-  p.lp4.shrub,
-  p.lp4.peatbogs,
-  cols = 4) 
-
-multiplot(p.lp4.smooth, 
-          p.lp4.all, cols = 2)
-
-## Predict response scale ####
-
-### predict ####
-
-rp4 <- predict(m4, df, ~ list(
-  elevation = exp(Eff.elevation),
-  slope = exp(Eff.slope),
-  northness = exp(Eff.northness),
-  eastness = exp(Eff.eastness),
-  crops = exp(Eff.crops),
-  tcd = exp(Eff.tcd),
-  swf = exp(Eff.swf),
-  pastures = exp(Eff.pasture),
-  artificial = exp(Eff.artificial),
-  grassland = exp(Eff.grasslands),
-  moors = exp(Eff.moors),
-  shrub = exp(Eff.shrub),
-  peatbogs = exp(Eff.peatbog),
-  spfield = exp(Eff.smooth),
-  all = exp(Intercept + 
-              Eff.elevation +
-              Eff.slope +
-              # Eff.northness +
-              Eff.eastness + 
-              Eff.crops +
-              # Eff.tcd +
-              Eff.swf +
-              Eff.pasture + 
-              Eff.artificial +
-              Eff.grasslands +
-              # Eff.moors +
-              Eff.shrub +
-              Eff.peatbog +
-              Eff.smooth)))
-
-saveRDS(rp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
-rp4 <- readRDS("Outputs/sett_model_5km_res/m4_lp.RDS")
-### plot #### 
-
-p.rp4.elev <- ggplot() +
-   gg(rp4$elevation, mask = ireland_outline) +
-   ggtitle("Elevation") +
-   coord_equal() +
-   theme_bw() +
-   scale_fill_viridis_c(option = "A") +
-   # theme(legend.position = "bottom") +
-   NULL
-
-p.rp4.slope <- ggplot() +
-  gg(rp4$slope, mask = ireland_outline) +
-  ggtitle("Slope") +
-  coord_equal() +
-  theme_bw() +
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") +
-  NULL
-
-# p.rp4.northness <- ggplot() +
-#   gg(rp4$northness, mask = ireland_outline) +
-#   ggtitle("Northness") +
-#   coord_equal() + 
-#   theme_bw() + 
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") + 
-#   NULL
-
-p.rp4.eastness <- ggplot() +
-  gg(rp4$eastness, mask = ireland_outline) +
-  ggtitle("Eastness") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.crops <- ggplot() +
-  gg(rp4$crops, mask = ireland_outline) +
-  ggtitle("crops") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-# p.rp4.tcd <- ggplot() +
-#   gg(rp4$tcd, mask = ireland_outline) +
-#   ggtitle("Tree cover density") +
-#   coord_equal() +
-#   theme_bw() +
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") +
-#   NULL
-
-p.rp4.swf <- ggplot() +
-  gg(rp4$swf, mask = ireland_outline) +
-  ggtitle("Small woody features") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.pastures <- ggplot() +
-  gg(rp4$pastures, mask = ireland_outline) +
-  ggtitle("Pastures") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.artificial <- ggplot() +
-  gg(rp4$artificial, mask = ireland_outline) +
-  ggtitle("Artificial surfaces") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.grassland <- ggplot() +
-  gg(rp4$grassland, mask = ireland_outline) +
-  ggtitle("Grasslands") +
-  coord_equal() +
-  theme_bw() +
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") +
-  NULL
-
-# p.rp4.moors <- ggplot() +
-#   gg(rp4$moors, mask = ireland_outline) +
-#   ggtitle("Moors and heathland") +
-#   coord_equal() +
-#   theme_bw() +
-#   scale_fill_viridis_c(option = "A") +
-#   # theme(legend.position = "bottom") +
-#   NULL
-
-p.rp4.shrub <- ggplot() +
-  gg(rp4$shrub, mask = ireland_outline) +
-  ggtitle("Transitional forest and shrub") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.peatbogs <- ggplot() +
-  gg(rp4$peatbogs, mask = ireland_outline) +
-  ggtitle("Peat bogs") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-p.rp4.smooth <- ggplot() +
-  gg(rp4$spfield, mask = ireland_outline) +
-  ggtitle("Spatial field") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL
-
-(p.rp4.all <- ggplot() + 
-  gg(rp4$all, mask = ireland_outline) + 
-  ggtitle("all covariates effect") +
-  coord_equal() + 
-  theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
-  # theme(legend.position = "bottom") + 
-  NULL)
-
-multiplot(
-  p.rp4.elev,
-  p.rp4.slope, 
-  # p.rp4.northness,
-  p.rp4.eastness,
-  p.rp4.crops,
-  # p.rp4.tcd,
-  p.rp4.swf,
-  p.rp4.pastures, 
-  p.rp4.artificial,
-  p.rp4.grassland,
-  # p.rp4.moors,
-  p.rp4.shrub,
-  p.rp4.peatbogs,
-  cols = 4)
-
-multiplot(p.lp4.smooth, 
-          p.rp4.all, 
-          cols = 2)
-
-pred_respRD <- raster(rp4$all['mean'])
-
-pred_resp <- mask(pred_respRD, ireland_outline)
-plot(pred_resp)
-writeRaster(pred_resp, 
-            filename = "badger_sett_pprediction.grd",
-            overwrite = T)
-
-
-## Predict total abundance ####
-
-(Abun.m4 <- predict(
-  m4,
-  ipoints,
-  ~ sum(weight * exp(Intercept + 
-                       Eff.elevation + 
-                       Eff.eastness +
-                       Eff.northness +
-                       Eff.slope +
-                       Eff.crops +
-                       Eff.tcd +
-                       Eff.swf +
-                       Eff.shrub + 
-                       Eff.moors +
-                       Eff.peatbog + 
-                       Eff.artificial +
-                       Eff.grasslands +
-                       Eff.pasture))))
-
-## Spde and cor covariance plots ####
-
-spde.range <- spde.posterior(m4, "Eff.smooth", what = "range")
-spde.logvar <- spde.posterior(m4, "Eff.smooth", what = "log.variance")
-range.plot <- plot(spde.range)
-var.plot <- plot(spde.logvar)
-
-multiplot(range.plot, var.plot)
-
-corplot <- plot(spde.posterior(m4, "Eff.smooth", what = "matern.correlation"))
-covplot <- plot(spde.posterior(m4, "Eff.smooth", what = "matern.covariance"))
-
-multiplot(covplot, corplot)
-
-## Evaluate effects ####
-
-### predict ####
-
-elev.pred <- predict(
-  m4,
-  data = data.frame(elevation = seq(min(elevation$elevation), 
-                                   max(elevation$elevation), 
-                                   length.out = 1000)),
-  formula = ~ Eff.elevation_eval(elevation), 
-  exclude = c(
-    # "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-    ))
-
-pasture.pred <- predict(
-  m4,
-  data = data.frame(pastures = seq(min(pastures$Pastures), 
-                                  max(pastures$Pastures), 
-                                  length.out = 1000)),
-  formula = ~ Eff.pasture_eval(pastures), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    # "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-
-peatbogs.pred <- predict(
-  m4,
-  data = data.frame(peatbogs = seq(min(peatbogs$Peatbogs), 
-                                   max(peatbogs$Peatbogs), 
-                                   length.out = 1000)),
-  formula = ~ Eff.peatbog_eval(peatbogs), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    # "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-moors.pred <- predict(
-  m4,
-  data = data.frame(moors = seq(min(moors$Moorsandheathland),
-                                max(moors$Moorsandheathland),
-                                length.out = 1000)),
-  formula = ~ Eff.moors_eval(moors),
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub",
-    # "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial",
-    "Eff.smooth"
-  ))
-
-grassland.pred <- predict(
-  m4,
-  data = data.frame(grassland = seq(min(grassland$Naturalgrasslands),
-                                    max(grassland$Naturalgrasslands),
-                                    length.out = 1000)),
-  formula = ~ Eff.grasslands_eval(grassland),
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    # "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-artificial.pred <- predict(
-  m4,
-  data = data.frame(artificial = seq(min(artificial$Artificialsurfaces), 
-                                     max(artificial$Artificialsurfaces), 
-                                     length.out = 1000)),
-  formula = ~ Eff.artificial_eval(artificial), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    # "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-crops.pred <- predict(
-  m4,
-  data = data.frame(crops = seq(min(crops$Plantedvegetationandcrops), 
-                                     max(crops$Plantedvegetationandcrops), 
-                                     length.out = 1000)),
-  formula = ~ Eff.crops_eval(crops), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    # "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-swf.pred <- predict(
-  m4,
-  data = data.frame(swf = seq(min(swf$small_woody_features), 
-                              max(swf$small_woody_features), 
-                              length.out = 1000)),
-  formula = ~ Eff.swf_eval(swf), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    # "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-tcd.pred <- predict(
-  m4,
-  data = data.frame(tcd = seq(min(tcd$tree_cover_density),
-                              max(tcd$tree_cover_density),
-                              length.out = 1000)),
-  formula = ~ Eff.tcd_eval(tcd),
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    # "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub",
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial",
-    "Eff.smooth"
-  ))
-
-northness.pred <- predict(
-  m4,
-  data = data.frame(northness = seq(min(northness$layer),
-                                 max(northness$layer),
-                                 length.out = 1000)),
-  formula = ~ Eff.northness_eval(northness),
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    # "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub",
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial",
-    "Eff.smooth"
-  ))
-
-eastness.pred <- predict(
-  m4,
-  data = data.frame(eastness = seq(min(eastness$layer), 
-                                   max(eastness$layer), 
-                                   length.out = 1000)),
-  formula = ~ Eff.eastness_eval(eastness), 
-  exclude = c(
-    "Eff.elevation",
-    # "Eff.eastness",
-    "Eff.northness",
-    "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-slope.pred <- predict(
-  m4,
-  data = data.frame(slope = seq(min(slope$slope), 
-                                max(slope$slope), 
-                                length.out = 1000)),
-  formula = ~ Eff.slope_eval(slope), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.eastness",
-    "Eff.northness",
-    # "Eff.slope",
-    "Eff.crops",
-    "Eff.tcd",
-    "Eff.swf",
-    "Eff.pasture",
-    "Eff.shrub", 
-    "Eff.moors",
-    "Eff.peatbog",
-    "Eff.grasslands",
-    "Eff.artificial", 
-    "Eff.smooth"
-  ))
-
-### plot ####
-
-eval.elev <- ggplot(elev.pred) +
-  geom_line(aes(elevation, mean)) +
-  geom_ribbon(aes(elevation,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(elevation,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$elevation[], na.rm = T), 
-                                  max(env_vars_scaled$elevation[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(env_vars$elevation[], na.rm = T), 
-                                  max(env_vars$elevation[], na.rm = T), 
-                                  length.out = 10), 0))
-
-eval.pasture <- ggplot(pasture.pred) +
-  geom_line(aes(pastures, mean)) +
-  geom_ribbon(aes(pastures,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(pastures,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Pastures[], na.rm = T), 
-                                  max(env_vars_scaled$Pastures[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Pastures[], na.rm = T), 
-                                        max(env_vars$Pastures[], na.rm = T), 
-                                        length.out = 10)), 0))
-
-eval.peatbogs <- ggplot(peatbogs.pred) +
-  geom_line(aes(peatbogs, mean)) +
-  geom_ribbon(aes(peatbogs,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(peatbogs,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Peatbogs[], na.rm = T), 
-                                  max(env_vars_scaled$Peatbogs[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Peatbogs[], na.rm = T), 
-                                             max(env_vars$Peatbogs[], na.rm = T), 
-                                             length.out = 10)), 0))
-
-
-eval.moors <- ggplot(moors.pred) +
-  geom_line(aes(moors, mean)) +
-  geom_ribbon(aes(moors,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(moors,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Moorsandheathland[], na.rm = T), 
-                                  max(env_vars_scaled$Moorsandheathland[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Moorsandheathland[], na.rm = T), 
-                                             max(env_vars$Moorsandheathland[], na.rm = T), 
-                                             length.out = 10)), 0))
-
-
-eval.grasslands <- ggplot(grassland.pred) +
-  geom_line(aes(grassland, mean)) +
-  geom_ribbon(aes(grassland,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(grassland,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Naturalgrasslands[], na.rm = T), 
-                                  max(env_vars_scaled$Naturalgrasslands[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Naturalgrasslands[], na.rm = T), 
-                                             max(env_vars$Naturalgrasslands[], na.rm = T), 
-                                             length.out = 10)), 0))
-
-
-eval.artificial <- ggplot(artificial.pred) +
-  geom_line(aes(artificial, mean)) +
-  geom_ribbon(aes(artificial,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(artificial,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Artificialsurfaces[], na.rm = T), 
-                                  max(env_vars_scaled$Artificialsurfaces[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Artificialsurfaces[], na.rm = T), 
-                                             max(env_vars$Artificialsurfaces[], na.rm = T), 
-                                             length.out = 10)), 0))
-
-
-eval.crops <- ggplot(crops.pred) +
-  geom_line(aes(crops, mean)) +
-  geom_ribbon(aes(crops,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(crops,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Plantedvegetationandcrops[], na.rm = T), 
-                                  max(env_vars_scaled$Plantedvegetationandcrops[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(100*(seq(min(env_vars$Plantedvegetationandcrops[], na.rm = T), 
-                                             max(env_vars$Plantedvegetationandcrops[], na.rm = T), 
-                                             length.out = 10)), 0))
-
-
-eval.swf <- ggplot(swf.pred) +
-  geom_line(aes(swf, mean)) +
-  geom_ribbon(aes(swf,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(swf,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$small_woody_features[], na.rm = T), 
-                                  max(env_vars_scaled$small_woody_features[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(env_vars$small_woody_features[], na.rm = T), 
-                                        max(env_vars$small_woody_features[], na.rm = T), 
-                                        length.out = 10), 0))
-
-
-eval.tcd <- ggplot(tcd.pred) +
-  geom_line(aes(tcd, mean)) +
-  geom_ribbon(aes(tcd,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(tcd,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) +
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$tree_cover_density[], na.rm = T), 
-                                  max(env_vars_scaled$tree_cover_density[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(env_vars$tree_cover_density[], na.rm = T), 
-                                        max(env_vars$tree_cover_density[], na.rm = T), 
-                                        length.out = 10), 0))
-
-eval.northness <- ggplot(northness.pred) +
-  geom_line(aes(northness, mean)) +
-  geom_ribbon(aes(northness,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(northness,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(northness@data, na.rm = T), 
-                                  max(northness@data, na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(northness@data, na.rm = T), 
-                                        max(northness@data, na.rm = T), 
-                                        length.out = 10), 2))
-
-eval.eastness <- ggplot(eastness.pred) +
-  geom_line(aes(eastness, mean)) +
-  geom_ribbon(aes(eastness,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(eastness,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(eastness@data, na.rm = T), 
-                                  max(eastness@data, na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(eastness@data, na.rm = T), 
-                                        max(eastness@data, na.rm = T), 
-                                        length.out = 10), 2))
-
-
-eval.slope <- ggplot(slope.pred) +
-  geom_line(aes(slope, mean)) +
-  geom_ribbon(aes(slope,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  geom_ribbon(aes(slope,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$slope[], na.rm = T), 
-                                  max(env_vars_scaled$slope[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(env_vars$slope[], na.rm = T), 
-                                        max(env_vars$slope[], na.rm = T), 
-                                        length.out = 10), 0))
-multiplot(
-  eval.elev,
-  eval.pasture,
-  eval.peatbogs,
-  eval.moors,
-  eval.grasslands,
-  eval.artificial, 
-  eval.crops,
-  eval.swf,
-  eval.tcd,
-  eval.eastness,
-  eval.northness,
-  eval.slope,
-  cols = 3
-)
 
