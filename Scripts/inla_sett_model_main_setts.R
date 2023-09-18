@@ -323,6 +323,8 @@ m4 <- lgcp(nonlinear_SPDE,
            samplers = samplers)
 
 # saveRDS(m4, file = "Outputs/main_sett_model_1km/final_main_sett_model.RDS")
+m4 <- readRDS("Outputs/main_sett_model_1km/final_main_sett_model.RDS")
+
 summary(m4)
 
 ## Predict linear scale ####
@@ -360,7 +362,8 @@ lp4 <- predict(m4, df, ~ list(
     Eff.peatbog +
     Eff.smooth))
 
-saveRDS(lp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
+# saveRDS(lp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
+lp4 <- readRDS("Outputs/main_sett_model_1km/m4_lp.RDS")
 
 ### plot #### 
 
@@ -556,7 +559,9 @@ rp4 <- predict(m4, df, ~ list(
               Eff.peatbog +
               Eff.smooth)))
 
-saveRDS(rp4, file = "Outputs/main_sett_model_1km/m4_rp.RDS")
+# saveRDS(rp4, file = "Outputs/main_sett_model_1km/m4_rp.RDS")
+rp4 <- readRDS("Outputs/main_sett_model_1km/m4_rp.RDS")
+
 ### plot #### 
 
 p.rp4.elev <- ggplot() +
