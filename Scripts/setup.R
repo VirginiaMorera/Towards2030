@@ -13,6 +13,7 @@ library(inlabru)
 library(INLA)
 library(RColorBrewer)
 library(rcartocolor)
+library(scales)
 
 getmode <- function(v) {
   uniqv <- unique(v)
