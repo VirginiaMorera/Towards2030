@@ -103,7 +103,7 @@ sett_geometry <- sett_spatial_clean %>%
   select(SETT_ID, x_coordinate, y_coordinate) %>% 
   st_as_sf(coords = c("x_coordinate", "y_coordinate"), crs = st_crs(ireland))
 
-setr_geometry_backup <- sett_clean %>% 
+sett_geometry_backup <- sett_clean %>% 
   select(SETT_ID, x_coordinate, y_coordinate) %>% 
   st_as_sf(coords = c("x_coordinate", "y_coordinate"), crs = st_crs(ireland))
 
