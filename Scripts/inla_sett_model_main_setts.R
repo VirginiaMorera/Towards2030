@@ -9,11 +9,11 @@ bru_options_set(bru_verbose = TRUE,
 # Preparation of data ####
 
 ## load sett data and covariates ####
-sett_all <- readRDS("Data/sett_all.RDS") %>% 
+sett_all <- readRDS("Data/sett_all_2023.RDS") %>% 
   st_transform(crs = projKM) 
 
 sett_subset <- sett_all%>% 
-  filter(last_visit_est >= 2015) %>% 
+  filter(DATE_OF_FIELD_VISIT >= 2015) %>% 
   filter(MAIN_SETT == "Yes")
 
 setts <- as_Spatial(sett_subset)
@@ -60,7 +60,7 @@ ipoints@proj4string <- mesh2$crs
 ## plot all data ####
 ggplot() + 
   gg(ireland_outline) + 
-  gg(samplers, fill = "pink", alpha = 0.5) + 
+  gg(samplers, fill = "green", alpha = 0.5) + 
   gg(setts, alpha = 0.5) + 
   coord_equal() + 
   theme_bw() + 
@@ -217,7 +217,7 @@ mesh1D_swf <- inla.mesh.1d(seq(min(swf$small_woody_features)-1,
                            degree = 2) 
 
 matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-                                    prior.range = c(2.67, 0.1), # 1 third range mesh
+                                    prior.range = c(5, 0.1), # 1 third range mesh
                                     prior.sigma = c(0.01, 0.1))
 
 
@@ -322,7 +322,7 @@ m4 <- lgcp(nonlinear_SPDE,
            domain = list(coordinates = mesh2),
            samplers = samplers)
 
-# saveRDS(m4, file = "Outputs/main_sett_model_1km/final_main_sett_model.RDS")
+# saveRDS(m4, file = "Outputs/main_sett_model_1km_23/final_main_sett_model.RDS")
 m4 <- readRDS("Outputs/main_sett_model_1km/final_main_sett_model.RDS")
 
 summary(m4)
@@ -362,7 +362,7 @@ lp4 <- predict(m4, df, ~ list(
     Eff.peatbog +
     Eff.smooth))
 
-# saveRDS(lp4, file = "Outputs/main_sett_model_1km/m4_lp.RDS")
+# saveRDS(lp4, file = "Outputs/main_sett_model_1km_23/m4_lp.RDS")
 lp4 <- readRDS("Outputs/main_sett_model_1km/m4_lp.RDS")
 
 ### plot #### 
@@ -559,8 +559,8 @@ rp4 <- predict(m4, df, ~ list(
               Eff.peatbog +
               Eff.smooth)))
 
-# saveRDS(rp4, file = "Outputs/main_sett_model_1km/m4_rp.RDS")
-rp4 <- readRDS("Outputs/main_sett_model_1km/m4_rp.RDS")
+# saveRDS(rp4, file = "Outputs/main_sett_model_1km_23/m4_rp.RDS")
+rp4 <- readRDS("Outputs/main_sett_model_1km_23/m4_rp.RDS")
 
 ### plot #### 
 
