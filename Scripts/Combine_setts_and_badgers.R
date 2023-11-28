@@ -1,21 +1,17 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-#######################
-#### Load datasets ####
-#######################
+# Load datasets ####
 
-sett_all <- readRDS("Data/sett_all.RDS")
-badgers_all <- readRDS("Data/badgers_all.RDS")
+sett_all <- readRDS("Data/sett_all_2023.RDS")
+badgers_all <- readRDS("Data/badgers_all_2023.RDS")
 IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
-ireland <- st_read("Data/ireland_ITM.shp")
+ireland <- st_read("Data/Other/ireland_ITM.shp")
 
-####################################
-#### Merge badger and sett data ####
-####################################
+# Merge badger and sett data ####
 
 sett_geometry <- sett_all %>% 
-  # dplyr::select(SETT_ID) %>% 
+  dplyr::select(SETT_ID) %>%
   mutate(x_coord = st_coordinates(.)[,1],
          y_coord = st_coordinates(.)[,2]) %>% 
   st_drop_geometry() %>% 
@@ -23,12 +19,12 @@ sett_geometry <- sett_all %>%
 
 all_data <- badgers_all %>% 
   left_join(sett_geometry) %>% 
-  distinct() 
+  distinct() %>% 
+  filter(!is.na(x_coord)) %>% 
+  st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland)) 
   
-
-##################################
-#### Display badgerXsett data ####
-##################################
+  
+# Display badgerXsett data ####
 
 # How many capture events per sett
 
@@ -44,12 +40,12 @@ table(x$n_capture_events) # ~11000 setts have only been checked once (to keep in
 
 # map capture events per sett and year spatially
 all_data %>% 
-  group_by(SETT_ID, year_captured) %>% 
+  group_by(SETT_ID, YEAR) %>% 
   summarise(n_capture_events = n_distinct(CAPTURE_BLOCK_EVENT), 
             x_coord = unique(x_coord), 
             y_coord = unique(y_coord)) %>%  
   filter(!is.na(x_coord)) %>%
-  filter(!is.na(year_captured)) %>% 
+  filter(!is.na(YEAR)) %>% 
   st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland)) %>% 
   ggplot + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
@@ -58,7 +54,7 @@ all_data %>%
   scale_color_viridis() + 
   labs(col = "N of capture events") + 
   theme_bw() + 
-  facet_wrap(~year_captured, nrow = 3) + 
+  facet_wrap(~YEAR, nrow = 3) + 
   ggtitle("N capture events for setts checked more than once")
 
 ggsave(file = "Outputs/capture_events_sett_year.png", scale = 2)
@@ -81,50 +77,36 @@ all_data %>%
   theme_bw() + 
   ggtitle("N capture events for setts checked more than once")
 
+# Jitter badger locations to model them as lgcp ####
 
-################################################
-#### calculate badgers per capture per sett ####
-################################################
+all_data_jit <- all_data %>% 
+  st_jitter(amount = 1000)
 
-badger_count <- all_data %>% 
-  filter(!is.na(CAPTURE_BLOCK_EVENT)) %>%  # 16% (>17000 rows) of badger obs don't have capture block event
-  group_by(SETT_ID, CAPTURE_BLOCK_EVENT) %>% 
-  summarise(N_badgers = n()) %>% 
-  ungroup() %>% 
+ggplot(all_data_jit) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(col = "black", alpha = 0.5, size = 0.5) + 
+  theme_bw()
+
+saveRDS(all_data_jit, "Data/badgers_jittered.RDS")
+
+# Summarise data by sett to model as Poison count data ####
+
+p <- function(v) {
+  Reduce(f=paste, x = v)
+}
+
+
+
+all_data_sum <- all_data %>% 
+  st_set_geometry(NULL) %>% 
+  mutate(YEAR = as.numeric(levels(YEAR))[YEAR]) %>% 
+  filter(YEAR >= 2015) %>% 
+  group_by(SETT_ID, CAPTURE_BLOCK_EVENT) %>%
+  summarise(n_badgers = n()) %>% 
   group_by(SETT_ID) %>% 
-  summarise(Avg_badgers = mean(N_badgers, na.rm = T)) %>% 
-  left_join(sett_geometry[,c("SETT_ID", "x_coord", "y_coord")]) %>% 
-  filter(!is.na(x_coord)) %>% 
-  st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland))
-
-ggplot(badger_count) + 
-  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
-  geom_sf(aes(col = Avg_badgers)) + 
-  scale_color_viridis_c() + 
-  theme_bw()
-
-
-
-#################################################################
-#### calculate avg badger weight per year and sett ####
-#################################################################
-
-badger_weight <- all_data %>% 
-  filter(!is.na(CAPTURE_BLOCK_EVENT)) %>%  # 16% (>17000 rows) of badger obs don't have capture block event
-  group_by(year_captured, SETT_ID) %>% 
-  summarise(Avg_weight = mean(WEIGHT, na.rm = T)) %>% 
-  ungroup() %>% 
-  left_join(sett_geometry[,c("SETT_ID", "x_coord", "y_coord")]) %>% 
-  filter(!is.na(x_coord)) %>% 
-  st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland))
-
-ggplot(badger_weight) + 
-  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
-  geom_sf(data = . %>% filter(!is.na(Avg_weight)), aes(col = Avg_weight)) + 
-  scale_color_viridis_c() + 
-  # facet_wrap(~year_captured, nrow = 3) + 
-  theme_bw()
-
-ggsave(file = "Outputs/avg_weigt_sett_year.png", scale = 2)
-
-
+  summarise(
+    effort = n(), 
+    badgers = p(as.character(n_badgers)))
+  
+  
+  
