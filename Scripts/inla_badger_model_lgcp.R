@@ -18,7 +18,7 @@ badger_subset <- badgers_all %>%
 
 badgers <- as_Spatial(badger_subset)
 
-env_vars <- stack("Data/all_covars_1km.grd")
+env_vars <- stack("Data/all_covars_1km_smooth5.grd")
 env_vars_scaled <- raster::scale(env_vars)
 
 # corine <- stack("Data/Covars/corine_5km.grd")
@@ -34,8 +34,8 @@ ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
 ireland_outline <- as_Spatial(ireland_outline_sf)
 
 ### three meshes so we can choose which one ####
-mesh2 <- readRDS("Data/Inla/mesh.RDS")
-# mesh2 <- readRDS("Data/Inla/small_mesh.RDS")
+# mesh2 <- readRDS("Data/Inla/mesh.RDS")
+mesh2 <- readRDS("Data/Inla/small_mesh.RDS")
 # mesh3 <- readRDS("Data/Inla/Dambly_mesh3.RDS")
 
 inner_boundary <- readRDS("Data/Inla/inner_boundary.RDS")
@@ -61,7 +61,7 @@ ipoints@proj4string <- mesh2$crs
 ggplot() + 
   gg(ireland_outline) + 
   gg(samplers, fill = "green", alpha = 0.5) + 
-  gg(badgers, alpha = 0.5) + 
+  gg(badgers, alpha = 0.5, size = 0.5) + 
   coord_equal() + 
   theme_bw() + 
   labs(x = "", y = "")
@@ -75,12 +75,10 @@ elevation@proj4string <- mesh2$crs
 slope <- as(env_vars_scaled$slope, "SpatialPixelsDataFrame")
 slope@proj4string <- mesh2$crs
 
-northness <- cos(raster::terrain(env_vars$elevation, opt = "aspect", units = "rad"))
-northness <- as(northness, "SpatialPixelsDataFrame")
+northness <- as(env_vars_scaled$northness, "SpatialPixelsDataFrame")
 northness@proj4string <- mesh2$crs
 
-eastness <- sin(raster::terrain(env_vars$elevation, opt = "aspect", units = "rad"))
-eastness <- as(eastness, "SpatialPixelsDataFrame")
+eastness <- as(env_vars_scaled$eastness, "SpatialPixelsDataFrame")
 eastness@proj4string <- mesh2$crs
 
 hfi <- as(env_vars_scaled$human_footprint_index, "SpatialPixelsDataFrame")
@@ -104,14 +102,14 @@ crops@proj4string <- mesh2$crs
 pastures <- as(env_vars_scaled$Pastures, "SpatialPixelsDataFrame")
 pastures@proj4string <- mesh2$crs
 
-broadleaf <- as(env_vars_scaled$Broad.leavedforest, "SpatialPixelsDataFrame")
-broadleaf@proj4string <- mesh2$crs
-
-coniferous <- as(env_vars_scaled$Coniferousforest, "SpatialPixelsDataFrame")
-coniferous@proj4string <- mesh2$crs
-
-mixed <- as(env_vars_scaled$Mixedforest, "SpatialPixelsDataFrame")
-mixed@proj4string <- mesh2$crs
+# broadleaf <- as(env_vars_scaled$Broad.leavedforest, "SpatialPixelsDataFrame")
+# broadleaf@proj4string <- mesh2$crs
+# 
+# coniferous <- as(env_vars_scaled$Coniferousforest, "SpatialPixelsDataFrame")
+# coniferous@proj4string <- mesh2$crs
+# 
+# mixed <- as(env_vars_scaled$Mixedforest, "SpatialPixelsDataFrame")
+# mixed@proj4string <- mesh2$crs
 
 grassland <- as(env_vars_scaled$Naturalgrasslands, "SpatialPixelsDataFrame")
 grassland@proj4string <- mesh2$crs
@@ -122,11 +120,11 @@ moors@proj4string <- mesh2$crs
 shrub <- as(env_vars_scaled$Transitionalwoodland.shrub, "SpatialPixelsDataFrame")
 shrub@proj4string <- mesh2$crs
 
-open <- as(env_vars_scaled$Openspaceswithlittleornovegetation, "SpatialPixelsDataFrame")
-open@proj4string <- mesh2$crs
-
-water <- as(env_vars_scaled$Inlandwaters, "SpatialPixelsDataFrame")
-water@proj4string <- mesh2$crs
+# open <- as(env_vars_scaled$Openspaceswithlittleornovegetation, "SpatialPixelsDataFrame")
+# open@proj4string <- mesh2$crs
+# 
+# water <- as(env_vars_scaled$Inlandwaters, "SpatialPixelsDataFrame")
+# water@proj4string <- mesh2$crs
 
 peatbogs <- as(env_vars_scaled$Peatbogs, "SpatialPixelsDataFrame")
 peatbogs@proj4string <- mesh2$crs
@@ -143,7 +141,7 @@ diff(range(elevation$elevation))/3
 
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
                                      prior.range = c(5, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.1, 0.1))
+                                     prior.sigma = c(0.01, 0.1))
 
 ### 1d mesh for slope ####
 
@@ -154,33 +152,33 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope$slope)-1, max(slope$slope)+1,
 diff(range(slope$slope))/3
 
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(3.9, 0.1), # 1 third range mesh
+                                      prior.range = c(3.6, 0.1), # 1 third range mesh
                                       prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for northness ####
 
-mesh1D_northness <- inla.mesh.1d(seq(min(northness$layer)-1,
-                                  max(northness$layer)+1,
-                                  length.out = 10),
+mesh1D_northness <- inla.mesh.1d(seq(min(northness$northness)-1,
+                                     max(northness$northness)+1,
+                                     length.out = 10),
                               degree = 2)
 
-diff(range(northness$layer))/3
+diff(range(northness$northness))/3
 
 matern1D_northness <- inla.spde2.pcmatern(mesh1D_northness,
-                                       prior.range = c(0.6, 0.01), # 1 third range mesh
+                                       prior.range = c(1.4, 0.01), # 1 third range mesh
                                        prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for eastness ####
 
-mesh1D_eastness <- inla.mesh.1d(seq(min(eastness$layer)-1, 
-                                    max(eastness$layer)+1, 
+mesh1D_eastness <- inla.mesh.1d(seq(min(eastness$eastness)-1, 
+                                    max(eastness$eastness)+1, 
                                     length.out = 10), 
                                 degree = 2) 
 
-diff(range(eastness$layer))/3
+diff(range(eastness$eastness))/3
 
 matern1D_eastness <- inla.spde2.pcmatern(mesh1D_eastness,
-                                         prior.range = c(0.66, 0.1), # 1 third range mesh
+                                         prior.range = c(1.4, 0.1), # 1 third range mesh
                                          prior.sigma = c(0.01, 0.1))
 
 ### 1d mesh for crops ####
@@ -193,7 +191,7 @@ mesh1D_crops <- inla.mesh.1d(seq(min(crops$Plantedvegetationandcrops)-1,
 diff(range(crops$Plantedvegetationandcrops))/3
 
 matern1D_crops <- inla.spde2.pcmatern(mesh1D_crops,
-                                      prior.range = c(1.68, 0.1), # 1 third range mesh
+                                      prior.range = c(2.12, 0.1), # 1 third range mesh
                                       prior.sigma = c(0.1, 0.1))
 
 
@@ -207,7 +205,7 @@ mesh1D_tcd <- inla.mesh.1d(seq(min(tcd$tree_cover_density)-1,
 diff(range(tcd$tree_cover_density))/3
 
 matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-                                    prior.range = c(2.63, 0.01), # 1 third range mesh
+                                    prior.range = c(2.5, 0.01), # 1 third range mesh
                                     prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for small woody features ####
@@ -220,7 +218,7 @@ mesh1D_swf <- inla.mesh.1d(seq(min(swf$small_woody_features)-1,
 diff(range(swf$small_woody_features))/3
 
 matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-                                    prior.range = c(2.66, 0.1), # 1 third range mesh
+                                    prior.range = c(2.9, 0.1), # 1 third range mesh
                                     prior.sigma = c(0.1, 0.1))
 
 
@@ -234,7 +232,7 @@ mesh1D_pastures <- inla.mesh.1d(seq(min(pastures$Pastures)-1,
 diff(range(pastures$Pastures))/3
 
 matern1D_pastures <- inla.spde2.pcmatern(mesh1D_pastures,
-                                         prior.range = c(0.88, 0.01), # force a longer range, and same as grasslands
+                                         prior.range = c(1.0, 0.01), # force a longer range, and same as grasslands
                                          prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for artificial surfaces ####
@@ -247,7 +245,7 @@ mesh1D_artificial <- inla.mesh.1d(seq(min(artificial$Artificialsurfaces)-1,
 diff(range(artificial$Artificialsurfaces))/3
 
 matern1D_artificial <- inla.spde2.pcmatern(mesh1D_artificial,
-                                           prior.range = c(2.9, 0.01), # 1 third range mesh
+                                           prior.range = c(3.5, 0.01), # 1 third range mesh
                                            prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for grasslands ####
@@ -260,7 +258,7 @@ mesh1D_grassland <- inla.mesh.1d(seq(min(grassland$Naturalgrasslands)-1,
 diff(range(grassland$Naturalgrasslands))/3
 
 matern1D_grassland <- inla.spde2.pcmatern(mesh1D_grassland,
-                                          prior.range = c(3.73, 0.1), # force a longer range together with pastures
+                                          prior.range = c(4.4, 0.1), # force a longer range together with pastures
                                           prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for moors ####
@@ -273,7 +271,7 @@ mesh1D_moors <- inla.mesh.1d(seq(min(moors$Moorsandheathland)-1,
 diff(range(moors$Moorsandheathland))/3
 
 matern1D_moors <- inla.spde2.pcmatern(mesh1D_grassland,
-                                      prior.range = c(3.17, 0.01), # 1 third range mesh
+                                      prior.range = c(3.8, 0.01), # 1 third range mesh
                                       prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for shrub ####
@@ -286,7 +284,7 @@ mesh1D_shrub <- inla.mesh.1d(seq(min(shrub$Transitionalwoodland.shrub)-1,
 diff(range(shrub$Transitionalwoodland.shrub))/3
 
 matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
-                                      prior.range = c(3.78, 0.01), # 1 third range mesh
+                                      prior.range = c(4.5, 0.01), # 1 third range mesh
                                       prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for peatbogs ####
@@ -299,7 +297,7 @@ mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogs$Peatbogs)-1,
 diff(range(peatbogs$Peatbogs))/3
 
 matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
-                                         prior.range = c(1.35, 0.01), # 1 third range mesh
+                                         prior.range = c(1.6, 0.01), # 1 third range mesh
                                          prior.sigma = c(0.1, 0.01))
 
 
@@ -310,17 +308,17 @@ matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
 matern2D <- inla.spde2.pcmatern(alpha = 3/2, 
                                 mesh2,
                                 prior.range = c(100, NA),  #1/3 y coordinate
-                                prior.sigma = c(0.1, 0.01))
+                                prior.sigma = c(0.05, NA))
 
 
 ## Formula ####
 
 nonlinear_SPDE <- coordinates ~  Intercept(1)  +
-  Eff.elevation(elevation, model = "linear") +
+  Eff.elevation(elevation, model = matern1D_elev) +
   Eff.slope(slope, model = matern1D_slope) +
   Eff.eastness(eastness, model = "linear") +
   Eff.northness(northness, model = "linear") +
-  Eff.tcd(tcd, model = "linear") +
+  Eff.tcd(tcd, model = matern1D_tcd) +
   Eff.swf(swf, model = "linear") +
   Eff.crops(crops, model = "linear") +
   Eff.pasture(pastures, model = "linear") +
@@ -387,7 +385,8 @@ p.lp4.elev <- ggplot() +
   ggtitle("Elevation") +
   coord_equal() +
   theme_bw() +
-  # scale_fill_carto_c(type = "quantitative", palette = "Sunset", direction = -1) + 
+  # scale_fill_carto_c(type = "quantitative", palette = "Sunset", 
+  #                    direction = -1) +
   scale_fill_viridis_c(option = "A") +
   # theme(legend.position = "bottom") +
   NULL
@@ -707,7 +706,7 @@ p.rp4.smooth <- ggplot() +
 
 (p.rp4.all <- ggplot() + 
     gg(rp4$all, mask = ireland_outline) + 
-    labs(title = "Predicted sett abundance per square km", x = "", y = "") + 
+    labs(title = "Predicted badger abundance per square km", x = "", y = "") + 
     coord_equal() + 
     theme_bw() + 
     scale_fill_viridis_c(option = "A") +
@@ -733,6 +732,7 @@ multiplot(
 multiplot(p.rp4.all, 
           p.lp4.smooth, 
           cols = 2)
+
 
 pred_respRD <- raster(rp4$all['mean'])
 
@@ -1058,6 +1058,29 @@ slope.pred <- predict(
     "Eff.smooth"
   ))
 
+shrub.pred <- predict(
+  m4,
+  data = data.frame(shrub = seq(min(shrub$Transitionalwoodland.shrub), 
+                                max(shrub$Transitionalwoodland.shrub), 
+                                length.out = 1000)),
+  formula = ~ Eff.slope_eval(shrub), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.eastness",
+    "Eff.northness",
+    "Eff.slope",
+    "Eff.crops",
+    "Eff.tcd",
+    "Eff.swf",
+    "Eff.pasture",
+    # "Eff.shrub", 
+    "Eff.moors",
+    "Eff.peatbog",
+    "Eff.grasslands",
+    "Eff.artificial", 
+    "Eff.smooth"
+  ))
+
 ### plot ####
 
 eval.elev <- ggplot(elev.pred) +
@@ -1282,19 +1305,40 @@ eval.slope <- ggplot(slope.pred) +
                      labels = round(seq(min(env_vars$slope[], na.rm = T), 
                                         max(env_vars$slope[], na.rm = T), 
                                         length.out = 10), 0))
+
+eval.shrub <- ggplot(shrub.pred) +
+  geom_line(aes(shrub, mean)) +
+  geom_ribbon(aes(shrub,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Shrub", y = "Effect") + 
+  geom_ribbon(aes(shrub,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                  max(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$Transitionalwoodland.shrub[], na.rm = T), 
+                                        max(env_vars$Transitionalwoodland.shrub[], na.rm = T), 
+                                        length.out = 10), 0))
+
 multiplot(
-  eval.elev,
+  eval.elev,  
+  eval.eastness,
+  eval.northness,
+  eval.slope,
   eval.pasture,
   eval.peatbogs,
   eval.moors,
   eval.grasslands,
   eval.artificial, 
+  eval.shrub,
   eval.crops,
   eval.swf,
   eval.tcd,
-  eval.eastness,
-  eval.northness,
-  eval.slope,
+
   cols = 2
 )
 
