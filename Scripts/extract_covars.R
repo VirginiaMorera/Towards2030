@@ -140,13 +140,64 @@ writeRaster(env_vars_sel_5km, filename = "Data/env_vars_5km.grd", format = "rast
 
 # Corine continuous layers ####
 
-corine <- stack("Data/corine_ireland_1km.grd")
+corine <- stack("Data/Covars/corine_ireland_1km.grd")
+env_vars_km <- stack("Data/Covars/env_vars_1km.grd")
 corineKM <- projectRaster(corine, crs = projKM)
 corineKM <- resample(corineKM, env_vars_km)
 all_covars_1km <- stack(env_vars_km, corineKM)
-writeRaster(all_covars_1km, filename = "Data/all_covars_1km.grd", format = "raster")
+all_covars_1km <- subset(all_covars_1km, subset = c(2, 3, 6, 7, 15:17, 21:23, 26))
+all_covars_1km$northness <- cos(raster::terrain(all_covars_1km$elevation, opt = "aspect", units = "rad"))
+all_covars_1km$eastness <- sin(raster::terrain(all_covars_1km$elevation, opt = "aspect", units = "rad"))
+
+writeRaster(all_covars_1km, filename = "Data/all_covars_1km.grd", format = "raster", 
+            overwrite = T)
 
 plot(corineKM)
 corine_5k <- resample(corineKM, largerRas, method = "bilinear")
 plot(corine_5k)
 writeRaster(corine_5k, filename = "Data/corine_5km.grd", format = "raster", overwrite = T)
+
+# Smooth covariates to avoid issues with mesh resolution
+
+
+ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
+
+par(mfrow = c(1,3))
+r <- env_vars$tree_cover_density
+r2 <- focal(r, w= matrix(1,3,3), mean, na.rm = T)
+r3 <- focal(r, w= matrix(1,9,9), mean, na.rm = T)
+plot(r)
+plot(mesh2, add = T)
+plot(r2)
+plot(mesh2, add = T)
+plot(r3)
+plot(mesh2, add = T)
+
+env_vars_smooth3 <- stack()
+env_vars_smooth5 <- stack()
+
+for (i in 1:nlayers(all_covars_1km)) {
+  # i = 1
+  r <- all_covars_1km[[i]]
+  r2 <- focal(r, w= matrix(1,3,3), mean, na.rm = T)
+  r3 <- focal(r, w= matrix(1,5,5), mean, na.rm = T)
+  r2 <- crop(r2, ireland_outline_sf)
+  r3 <- crop(r3, ireland_outline_sf)
+  env_vars_smooth3 <- stack(env_vars_smooth3, r2)
+  env_vars_smooth5 <- stack(env_vars_smooth5, r3)
+}
+
+names(env_vars_smooth3) <- names(all_covars_1km)
+names(env_vars_smooth5) <- names(all_covars_1km)
+
+env_vars <- crop(all_covars_1km, ireland_outline_sf)
+plot(env_vars$tree_cover_density)
+plot(env_vars_smooth3$tree_cover_density)
+plot(env_vars_smooth5$tree_cover_density)
+
+writeRaster(env_vars, filename = "Data/all_covars_1km.grd", 
+            format = "raster", overwrite = T)
+writeRaster(env_vars_smooth3, filename = "Data/all_covars_1km_smooth3.grd", 
+            format = "raster", overwrite = T)
+writeRaster(env_vars_smooth5, filename = "Data/all_covars_1km_smooth5.grd", 
+            format = "raster", overwrite = T)
