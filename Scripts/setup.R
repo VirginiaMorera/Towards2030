@@ -14,6 +14,7 @@ library(INLA)
 library(RColorBrewer)
 library(rcartocolor)
 library(scales)
+library(ggthemes)
 
 getmode <- function(v) {
   uniqv <- unique(v)
