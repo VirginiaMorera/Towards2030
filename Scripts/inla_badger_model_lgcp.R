@@ -27,7 +27,7 @@ env_vars_scaled <- raster::scale(env_vars)
 # env_vars <- stack(corine, copernicus)
 # env_vars_scaled <- scale(env_vars)
 
-plot(env_vars_scaled)
+# plot(env_vars_scaled)
 
 ## load mesh boundaries and samplers ####
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
@@ -58,13 +58,13 @@ ipoints@proj4string <- mesh2$crs
 
 
 ## plot all data ####
-ggplot() + 
-  gg(ireland_outline) + 
-  gg(samplers, fill = "green", alpha = 0.5) + 
-  gg(badgers, alpha = 0.5, size = 0.5) + 
-  coord_equal() + 
-  theme_bw() + 
-  labs(x = "", y = "")
+# ggplot() + 
+#   gg(ireland_outline) + 
+#   gg(samplers, fill = "green", alpha = 0.5) + 
+#   gg(badgers, alpha = 0.5, size = 0.5) + 
+#   coord_equal() + 
+#   theme_bw() + 
+#   labs(x = "", y = "")
 
 
 # Prepare covars ####
@@ -81,8 +81,8 @@ northness@proj4string <- mesh2$crs
 eastness <- as(env_vars_scaled$eastness, "SpatialPixelsDataFrame")
 eastness@proj4string <- mesh2$crs
 
-hfi <- as(env_vars_scaled$human_footprint_index, "SpatialPixelsDataFrame")
-hfi@proj4string <- mesh2$crs
+# hfi <- as(env_vars_scaled$human_footprint_index, "SpatialPixelsDataFrame")
+# hfi@proj4string <- mesh2$crs
 
 # forest_distances <- as(env_vars_scaled$forest_distances, "SpatialPixelsDataFrame")
 # forest_distances@proj4string <- mesh2$crs
@@ -140,8 +140,8 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation$elevation)-1, max(elevation$elevat
 diff(range(elevation$elevation))/3
 
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(5, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.01, 0.1))
+                                     prior.range = c(5, NA), # 1 third range mesh
+                                     prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for slope ####
 
@@ -152,7 +152,7 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope$slope)-1, max(slope$slope)+1,
 diff(range(slope$slope))/3
 
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(3.6, 0.1), # 1 third range mesh
+                                      prior.range = c(5, 0.1), # 1 third range mesh
                                       prior.sigma = c(0.1, 0.01))
 
 ### 1d mesh for northness ####
@@ -205,8 +205,8 @@ mesh1D_tcd <- inla.mesh.1d(seq(min(tcd$tree_cover_density)-1,
 diff(range(tcd$tree_cover_density))/3
 
 matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-                                    prior.range = c(2.5, 0.01), # 1 third range mesh
-                                    prior.sigma = c(0.1, 0.01))
+                                    prior.range = c(10, NA), # 1 third range mesh
+                                    prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for small woody features ####
 
@@ -218,8 +218,8 @@ mesh1D_swf <- inla.mesh.1d(seq(min(swf$small_woody_features)-1,
 diff(range(swf$small_woody_features))/3
 
 matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-                                    prior.range = c(2.9, 0.1), # 1 third range mesh
-                                    prior.sigma = c(0.1, 0.1))
+                                    prior.range = c(5, 0.01), # 1 third range mesh
+                                    prior.sigma = c(0.01, 0.1))
 
 
 ### 1d mesh for pastures ####
@@ -259,7 +259,7 @@ diff(range(grassland$Naturalgrasslands))/3
 
 matern1D_grassland <- inla.spde2.pcmatern(mesh1D_grassland,
                                           prior.range = c(4.4, 0.1), # force a longer range together with pastures
-                                          prior.sigma = c(0.1, 0.1))
+                                          prior.sigma = c(0.01, 0.1))
 
 ### 1d mesh for moors ####
 
@@ -314,31 +314,32 @@ matern2D <- inla.spde2.pcmatern(alpha = 3/2,
 ## Formula ####
 
 nonlinear_SPDE <- coordinates ~  Intercept(1)  +
-  Eff.elevation(elevation, model = matern1D_elev) +
-  Eff.slope(slope, model = matern1D_slope) +
-  Eff.eastness(eastness, model = "linear") +
-  Eff.northness(northness, model = "linear") +
-  Eff.tcd(tcd, model = matern1D_tcd) +
-  Eff.swf(swf, model = "linear") +
-  Eff.crops(crops, model = "linear") +
-  Eff.pasture(pastures, model = "linear") +
-  Eff.artificial(artificial, model = "linear") +
-  Eff.grasslands(grassland, model = "linear") +
-  Eff.moors(moors, model = "linear") +
-  Eff.shrub(shrub, model = "linear") +
-  Eff.peatbog(peatbogs, model = "linear") +
+  Eff.elevation(elevation, model = matern1D_elev) + #flat and then goes down, require spde
+  Eff.slope(slope, model = matern1D_slope) +  # similar to elevation
+  Eff.eastness(eastness, model = "linear") + #don't make sense to have them non linear
+  Eff.northness(northness, model = "linear") + #don't make sense to have them non linear
+  Eff.tcd(tcd, model = "linear") + # definitely not linear, need to decide on wigglyness
+  Eff.swf(swf, model = matern1D_swf) + # could be linear if necessary but actually goes down at high values
+  Eff.crops(crops, model = matern1D_crops) + #approx quadratic, would require non linear
+  Eff.pasture(pastures, model = matern1D_pastures) + # can be approximated to linear if necessary but also goes down at high values
+  Eff.artificial(artificial, model = "linear") + # checked, mostly linear
+  Eff.grasslands(grassland, model = "linear") + # so sparse that they're difficult to fit a spde, try linear or remove alltogether
+  Eff.moors(moors, model = "linear") + # non linear but very small, possibly flat
+  Eff.shrub(shrub, model = "linear") + #linear. values for shrub are very low (0-0.7)
+  Eff.peatbog(peatbogs, model = matern1D_peatbogs) + #first flat and then linear, ideally spde
   Eff.smooth(coordinates, model = matern2D) +
+  # Eff.iid(coordinates, model = "iid") +
   NULL
 
 ## Run model ####
 m4 <- lgcp(nonlinear_SPDE,
            badgers,
-           options = list(num.threads = 1),
+           # options = list(num.threads = 1),
            domain = list(coordinates = mesh2),
            samplers = samplers)
 
-# saveRDS(m4, file = "Outputs/main_sett_model_1km_23/final_main_sett_model.RDS")
-# m4 <- readRDS("Outputs/main_sett_model_1km/final_main_sett_model.RDS")
+# saveRDS(m4, file = "Outputs/badgers_lgcp_model_1km/final_badger_lgcp_model.RDS")
+m4 <- readRDS("Outputs/badgers_lgcp_model_1km/final_badger_lgcp_model.RDS")
 
 summary(m4)
 
@@ -377,8 +378,8 @@ lp4 <- predict(m4, df, ~ list(
     Eff.peatbog +
     Eff.smooth))
 
-# saveRDS(lp4, file = "Outputs/main_sett_model_1km_23/m4_lp.RDS")
-lp4 <- readRDS("Outputs/main_sett_model_1km/m4_lp.RDS")
+# saveRDS(lp4, file = "Outputs/badgers_lgcp_model_1km/m4_lp.RDS")
+lp4 <- readRDS("Outputs/badgers_lgcp_model_1km/m4_lp.RDS")
 
 p.lp4.elev <- ggplot() +
   gg(lp4$elevation, mask = ireland_outline) +
@@ -506,7 +507,7 @@ p.lp4.smooth <- ggplot() +
   coord_equal() + 
   theme_bw() + 
   # scale_fill_viridis_c(option = "A") +
-  scale_fill_gradientn(colours=brewer.pal(7,"RdBu")) +
+  scale_fill_gradientn(colours=brewer.pal(7,"RdBu"), ) +
   # theme(legend.position = "bottom") + 
   NULL
 
@@ -537,6 +538,16 @@ multiplot(
 
 multiplot(p.lp4.smooth, 
           p.lp4.all, cols = 2)
+
+spde_badgers <- raster(lp4$spfield['mean'])
+
+spde_badgers <- mask(spde_badgers, ireland_outline)
+plot(spde_badgers)
+
+writeRaster(spde_badgers, 
+            filename = "Outputs/badgers_spde.grd",
+            overwrite = T)
+
 
 ## Predict response scale ####
 
@@ -573,8 +584,8 @@ rp4 <- predict(m4, df, ~ list(
               Eff.peatbog +
               Eff.smooth)))
 
-# saveRDS(rp4, file = "Outputs/main_sett_model_1km_23/m4_rp.RDS")
-rp4 <- readRDS("Outputs/main_sett_model_1km_23/m4_rp.RDS")
+# saveRDS(rp4, file = "Outputs/badgers_lgcp_model_1km/m4_rp.RDS")
+rp4 <- readRDS("Outputs/badgers_lgcp_model_1km/m4_rp.RDS")
 
 ### plot #### 
 
@@ -739,15 +750,24 @@ pred_respRD <- raster(rp4$all['mean'])
 pred_resp <- mask(pred_respRD, ireland_outline)
 plot(pred_resp)
 writeRaster(pred_resp, 
-            filename = "badger_sett_pprediction.grd",
+            filename = "badger_abundance_pprediction.grd",
             overwrite = T)
 
+badgers_sd <- raster(rp4$all['sd'])
+
+badgers_sd <- mask(badgers_sd, ireland_outline)
+plot(badgers_sd)
+writeRaster(badgers_sd, 
+            filename = "badger_sd.grd",
+            overwrite = T)
 
 ## Predict total abundance ####
 
 (Abun.m4 <- predict(
   m4,
   ipoints,
+  n.samples = 1000,
+  seed = 1,
   ~ sum(weight * exp(Intercept + 
                        Eff.elevation + 
                        Eff.eastness +
@@ -991,8 +1011,8 @@ tcd.pred <- predict(
 
 northness.pred <- predict(
   m4,
-  data = data.frame(northness = seq(min(northness$layer),
-                                    max(northness$layer),
+  data = data.frame(northness = seq(min(northness$northness),
+                                    max(northness$northness),
                                     length.out = 1000)),
   formula = ~ Eff.northness_eval(northness),
   exclude = c(
@@ -1014,8 +1034,8 @@ northness.pred <- predict(
 
 eastness.pred <- predict(
   m4,
-  data = data.frame(eastness = seq(min(eastness$layer), 
-                                   max(eastness$layer), 
+  data = data.frame(eastness = seq(min(eastness$eastness), 
+                                   max(eastness$eastness), 
                                    length.out = 1000)),
   formula = ~ Eff.eastness_eval(eastness), 
   exclude = c(
@@ -1099,7 +1119,27 @@ eval.elev <- ggplot(elev.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(env_vars$elevation[], na.rm = T), 
                                         max(env_vars$elevation[], na.rm = T), 
-                                        length.out = 10), 0))
+                                        length.out = 10), 0)) + 
+  theme_bw() 
+
+eval.shrub <- ggplot(shrub.pred) +
+  geom_line(aes(shrub, mean)) +
+  geom_ribbon(aes(shrub,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  labs(x = "Percentage of shrubs", y = "Effect") + 
+  geom_ribbon(aes(shrub,
+                  ymin = mean - 1 * sd,
+                  ymax = mean + 1 * sd),
+              alpha = 0.2) + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                  max(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                        max(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
+                                        length.out = 10), 0)) + 
+  theme_bw() 
 
 eval.pasture <- ggplot(pasture.pred) +
   geom_line(aes(pastures, mean)) +
@@ -1117,7 +1157,8 @@ eval.pasture <- ggplot(pasture.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Pastures[], na.rm = T), 
                                              max(env_vars$Pastures[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) + 
+  theme_bw() 
 
 eval.peatbogs <- ggplot(peatbogs.pred) +
   geom_line(aes(peatbogs, mean)) +
@@ -1135,7 +1176,8 @@ eval.peatbogs <- ggplot(peatbogs.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Peatbogs[], na.rm = T), 
                                              max(env_vars$Peatbogs[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) + 
+  theme_bw() 
 
 
 eval.moors <- ggplot(moors.pred) +
@@ -1154,7 +1196,9 @@ eval.moors <- ggplot(moors.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Moorsandheathland[], na.rm = T), 
                                              max(env_vars$Moorsandheathland[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) + 
+  theme_bw() 
+
 
 
 eval.grasslands <- ggplot(grassland.pred) +
@@ -1173,7 +1217,8 @@ eval.grasslands <- ggplot(grassland.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Naturalgrasslands[], na.rm = T), 
                                              max(env_vars$Naturalgrasslands[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) + 
+  theme_bw() 
 
 
 eval.artificial <- ggplot(artificial.pred) +
@@ -1192,7 +1237,8 @@ eval.artificial <- ggplot(artificial.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Artificialsurfaces[], na.rm = T), 
                                              max(env_vars$Artificialsurfaces[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) + 
+  theme_bw() 
 
 
 eval.crops <- ggplot(crops.pred) +
@@ -1211,7 +1257,8 @@ eval.crops <- ggplot(crops.pred) +
                                   length.out = 10), 
                      labels = round(100*(seq(min(env_vars$Plantedvegetationandcrops[], na.rm = T), 
                                              max(env_vars$Plantedvegetationandcrops[], na.rm = T), 
-                                             length.out = 10)), 0))
+                                             length.out = 10)), 0)) +
+  theme_bw() 
 
 
 eval.swf <- ggplot(swf.pred) +
@@ -1230,7 +1277,8 @@ eval.swf <- ggplot(swf.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(env_vars$small_woody_features[], na.rm = T), 
                                         max(env_vars$small_woody_features[], na.rm = T), 
-                                        length.out = 10), 0))
+                                        length.out = 10), 0)) + 
+  theme_bw() 
 
 
 eval.tcd <- ggplot(tcd.pred) +
@@ -1249,7 +1297,8 @@ eval.tcd <- ggplot(tcd.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(env_vars$tree_cover_density[], na.rm = T), 
                                         max(env_vars$tree_cover_density[], na.rm = T), 
-                                        length.out = 10), 0))
+                                        length.out = 10), 0)) + 
+  theme_bw() 
 
 eval.northness <- ggplot(northness.pred) +
   geom_line(aes(northness, mean)) +
@@ -1267,7 +1316,8 @@ eval.northness <- ggplot(northness.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(northness@data, na.rm = T), 
                                         max(northness@data, na.rm = T), 
-                                        length.out = 10), 2))
+                                        length.out = 10), 2)) + 
+  theme_bw() 
 
 eval.eastness <- ggplot(eastness.pred) +
   geom_line(aes(eastness, mean)) +
@@ -1285,7 +1335,8 @@ eval.eastness <- ggplot(eastness.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(eastness@data, na.rm = T), 
                                         max(eastness@data, na.rm = T), 
-                                        length.out = 10), 2))
+                                        length.out = 10), 2)) + 
+  theme_bw() 
 
 
 eval.slope <- ggplot(slope.pred) +
@@ -1304,43 +1355,26 @@ eval.slope <- ggplot(slope.pred) +
                                   length.out = 10), 
                      labels = round(seq(min(env_vars$slope[], na.rm = T), 
                                         max(env_vars$slope[], na.rm = T), 
-                                        length.out = 10), 0))
-
-eval.shrub <- ggplot(shrub.pred) +
-  geom_line(aes(shrub, mean)) +
-  geom_ribbon(aes(shrub,
-                  ymin = q0.025,
-                  ymax = q0.975),
-              alpha = 0.2) +
-  labs(x = "Shrub", y = "Effect") + 
-  geom_ribbon(aes(shrub,
-                  ymin = mean - 1 * sd,
-                  ymax = mean + 1 * sd),
-              alpha = 0.2) + 
-  scale_x_continuous(breaks = seq(min(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
-                                  max(env_vars_scaled$Transitionalwoodland.shrub[], na.rm = T), 
-                                  length.out = 10), 
-                     labels = round(seq(min(env_vars$Transitionalwoodland.shrub[], na.rm = T), 
-                                        max(env_vars$Transitionalwoodland.shrub[], na.rm = T), 
-                                        length.out = 10), 0))
+                                        length.out = 10)*100, 0)) + 
+  theme_bw() 
 
 multiplot(
-  eval.elev,  
+  eval.elev,
+  eval.slope,
   eval.eastness,
   eval.northness,
-  eval.slope,
+  eval.tcd,
+  eval.swf,
+  eval.artificial, 
+  eval.grasslands,
   eval.pasture,
+  eval.crops,
   eval.peatbogs,
   eval.moors,
-  eval.grasslands,
-  eval.artificial, 
   eval.shrub,
-  eval.crops,
-  eval.swf,
-  eval.tcd,
-
-  cols = 2
+  cols = 3
 )
+ggsave("setts_covars.png")
 
 #~~~~~~~~~~~~~~~####
 # BACKUP MODELS ####
