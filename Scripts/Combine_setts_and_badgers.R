@@ -23,7 +23,7 @@ all_data <- badgers_all %>%
   filter(!is.na(x_coord)) %>% 
   st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland)) 
   
-  
+saveRDS(all_data, file = "Data/badgers_setts.RDS")  
 # Display badgerXsett data ####
 
 # How many capture events per sett
