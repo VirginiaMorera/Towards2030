@@ -84,9 +84,10 @@ c_badgers <- badgers_cleaner_with_date %>%
 badgers_vacc <- read_xlsx("Data/Raw/tbl_vacc_badgers_2023.xlsx")
 
 v_badgers <- badgers_vacc %>% 
+  mutate(CAPTURE_BLOCK_EVENT = paste(QUARTILE, EVENT_NO, sep = "_")) %>% 
   # select necessary variables
   dplyr::select(SETT_ID, BADGER_ID, DATE_CAUGHT = DATE_CAPTURE, SEX, AGE, WEIGHT,
-                VACCINATION, 
+                VACCINATION, CAPTURE_BLOCK_EVENT,
                 ECTOPARASITES, BADGER_STATUS,
                 ECTOPARASITE_TYPE, BADGER_ACTION, DATE_ENTERED, 
                 ) %>% 
@@ -125,7 +126,16 @@ v_badgers <- badgers_vacc %>%
          # clean weight variable
          WEIGHT = na_if(WEIGHT, 0))
 
+## Load and clean vaccination effort data ####
+effort <- read_xlsx("Data/Raw/tbl_vaccine_2023.xlsx")
 
+effort <- effort %>% 
+  mutate(CAPTURE_BLOCK_EVENT = paste(QUARTILE, EVENT, sep = "_"), 
+         diff_time = difftime(DATE_COMPLETED, DATE_COMMENCED, units = "days")) %>% 
+  select(CAPTURE_BLOCK_EVENT, diff_time, VACCINE_STATUS, VACC_VISIT)
+  
+
+## Put everything together ####
 badgers_all <- bind_rows(c_badgers, v_badgers) %>% 
   select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE_CAUGHT, 
          CAPTURE_BLOCK_EVENT, PROGRAMME) %>% 
