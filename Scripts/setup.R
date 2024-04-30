@@ -15,6 +15,9 @@ library(RColorBrewer)
 library(rcartocolor)
 library(scales)
 library(ggthemes)
+library(fmesher)
+library(patternogram)
+library(usdm)
 
 getmode <- function(v) {
   uniqv <- unique(v)
