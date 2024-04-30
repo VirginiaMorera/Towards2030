@@ -68,6 +68,10 @@ mesh_5k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out),
                          max.edge = c(5, 100), 
                          cutoff = 5, crs = boundary_out$crs)
 
+mesh_4k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
+                        max.edge = c(5, 100), 
+                        cutoff = 5, crs = boundary_out$crs)
+
 # parameters at smaller resolution than smoothed covars
 mesh_2k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
                         max.edge = c(2, 100), 
@@ -77,12 +81,13 @@ mesh_1k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out),
                         max.edge = c(1, 100), 
                         cutoff = 1, crs = boundary_out$crs)
 #### Plot mesh ####
-par(mfrow = c(2,2))
+par(mfrow = c(2,3))
 plot(mesh_20k)
 plot(boundary_sp, border = "green", add = T)
 plot(boundary2_sp, border = "orange", add = T)
 
 plot(mesh_5k)
+plot(mesh_4k)
 plot(mesh_2k)
 plot(mesh_1k)
 par(mfrow = c(1,1))
@@ -90,6 +95,7 @@ par(mfrow = c(1,1))
 # saveRDS(poly.barrier, file = "data/barrier.RDS")
 saveRDS(mesh_20k, file = "Data/Inla/mesh_20k.RDS")
 saveRDS(mesh_5k, file = "Data/Inla/mesh_5k.RDS")
+saveRDS(mesh_4k, file = "Data/Inla/mesh_4k.RDS")
 saveRDS(mesh_2k, file = "Data/Inla/mesh_2k.RDS")
 saveRDS(mesh_1k, file = "Data/Inla/mesh_1k.RDS")
 saveRDS(boundary2_sp, file = "Data/outer_boundary.RDS")
