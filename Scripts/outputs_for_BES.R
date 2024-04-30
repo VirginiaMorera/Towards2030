@@ -29,7 +29,7 @@ table(sett_all$BADGERS_CAPTURED, useNA = "ifany")
 
 sett_all %>% 
   distinct(SETT_ID, .keep_all = T) %>% 
-  filter(YEAR > 2015) %>% 
+  filter(YEAR > 2021) %>% 
   # mutate(BADGERS_CAPTURED = if_else(NO_BADGERS_CAPTURED == 0, "No", "Yes")) %>% 
   ggplot + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
