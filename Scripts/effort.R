@@ -4,20 +4,26 @@ source("Scripts/setup.R")
 
 # load data ####
 cap <- read.csv("Data/Raw/tbl_capture_EVENTS_2023.csv") # culling capture events
-badgers_all <- readRDS("Data/badgers_setts.RDS") # badgers georef to capture sett
+# badgers_all <- readRDS("Data/badgers_setts.RDS") # badgers georef to capture sett
+sett_all <- readRDS("Data/sett_all_2023.RDS")
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
 vac_cap <- read.csv("Data/Raw/tbl_vaccine_2023.csv") # vaccine capture data
+
 quart <- read_sf("Data/Raw/just_quartiles.shp") %>% 
   rename(QUARTILE = Q) %>% 
   st_set_crs(29902) %>% 
-  st_transform(st_crs(badgers_all))
+  st_transform(st_crs(sett_all))
 
 
 # culling capture events ####
 
-str(cap)
+# we need to try and assign a quartile to every capture event by overlapping 
+# the events with the quartiles. However, because the sett data only stores the 
+# last sett visit, we need to use the actual badgers captured (which means if 
+# no badgers were captured in a visit, we won't have them)
 
-# clean capture data
+str(cap)
+str(sett_all)
 
 cap_clean  <-  cap  %>%  
   dplyr::select(-DATE_ENTERED_IN_DATABASE, -diff2) %>% 
@@ -25,53 +31,47 @@ cap_clean  <-  cap  %>%
          DATE_COMPLETED = dmy(DATE_COMPLETED), 
          year = year(DATE_COMMENCED)) 
 
-# clean badger data 
-
-badgers_clean <- badgers_all %>% 
-  mutate(YEAR= as.numeric(as.character(YEAR))) %>% 
-  filter(YEAR > 2018)
-  
-
-# put together 
-
-all <- left_join(badgers_clean, cap_clean, by = "CAPTURE_BLOCK_EVENT") 
+# badgers_clean <- badgers_all %>% 
+#   st_drop_geometry() %>% 
+#   select(SETT_ID, CAPTURE_BLOCK_EVENT_badger = CAPTURE_BLOCK_EVENT, YEAR) %>% 
+#   mutate(YEAR= as.numeric(as.character(YEAR))) %>% 
+#   distinct()
 
 
-# summarise nº of visits per sett
+sett_clean <- sett_all %>% 
+  mutate(CAPTURE_BLOCK_EVENT_sett = paste(CAPTURE_BLOCK_ID, CAPTURE_BLOCK_EVENT, sep = "/")) %>% 
+  select(SETT_ID, CAPTURE_BLOCK_EVENT_sett, YEAR, geometry) %>% 
+  distinct()
 
-sum <- badgers_clean %>% 
-  filter(!is.na(CAPTURE_BLOCK_EVENT)) %>% # this will remove all vaccination badgers and some non-assigned badgers
-  group_by(SETT_ID) %>% 
-  summarise(n_visits = n_distinct(CAPTURE_BLOCK_EVENT)) %>% 
-  ungroup() 
+# 
+# badgers_clean_sf <- badgers_clean %>% 
+#   left_join(sett_clean, by = "SETT_ID") %>% 
+#   st_as_sf()
 
-ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = sum, aes(col = n_visits)) + 
-  scale_color_viridis_c(trans = scales::pseudo_log_trans(sigma = 0.001)) +
-  theme_bw()
+quart_clean <- quart %>% 
+  mutate(QUART = make.unique(QUART))
 
-# assign setts to quartiles 
+quart_geom <- quart %>% 
+  select(QUART)
 
-sett_quart <- quart %>% st_join(badgers_clean, left=TRUE)
+quart2 <- st_intersection(quart, sett_clean) %>% 
+  st_drop_geometry()
 
-# summarise number of unique capture events per qartile
-
-sum2 <- sett_quart %>% 
-  filter(!is.na(CAPTURE_BLOCK_EVENT)) %>% 
-  group_by(QUARTILE) %>% 
-  summarise(n_events = n_distinct(CAPTURE_BLOCK_EVENT)) %>% 
-  ungroup()
-
+quart_sum <- quart2 %>% 
+  filter(YEAR > 2018) %>% 
+  group_by(QUART) %>% 
+  summarise(weight = n_distinct(CAPTURE_BLOCK_EVENT_sett)) %>%  
+  left_join(quart_geom, by = "QUART") %>% 
+  st_as_sf(sf_column_name = "geometry")
 
 p1 <- ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = sum2, aes(col = n_events, fill = n_events)) + 
-  scale_color_viridis_c(na.value = "gray50") +
-  scale_fill_viridis_c(na.value = "gray50") +
-  theme_bw() + 
-  ggtitle("Culling programme effort in ~11 day units")
-
+   geom_sf(data = ireland_outline_sf) + 
+   geom_sf(data = quart_sum, aes(fill = weight, col = weight)) + 
+   # geom_sf(data = sett_all, size = 0.1, col = "white") +
+   scale_fill_viridis_c() +
+   scale_color_viridis_c() +
+   theme_bw() + 
+   ggtitle("Culling programme effort in ~11 day units")
 
 # vaccine effort ####
 
@@ -80,48 +80,47 @@ p1 <- ggplot() +
 
 vac_cap <- vac_cap %>% 
   filter(VACCINE_STATUS == "APPROVED") %>% 
-  mutate(DATE_COMMENCED = ymd_hm(DATE_COMMENCED))
+  mutate(DATE_COMMENCED = ymd_hm(DATE_COMMENCED), 
+         year = year(DATE_COMMENCED))
 
 
 vac_cap_sum <- vac_cap %>% 
+  filter(year > 2018) %>% 
+  mutate(CAPTURE_BLOCK_EVENT_vacc = paste(EVENT, DATE_COMMENCED)) %>% 
   group_by(QUARTILE) %>% 
-  summarise(events = n_distinct(EVENT)) %>% 
+  summarise(weight = n_distinct(CAPTURE_BLOCK_EVENT_vacc)) %>% 
   ungroup()
 
 quart_effort <- full_join(quart, vac_cap_sum)
 
+# combine
 
-p2 <- ggplot() + 
+head(quart_sum)
+head(quart_effort)
+
+vacc_effort <- quart_effort %>% 
+  select(QUART, weight)
+
+cul_effort <- quart_sum %>% 
+  select(QUART, weight) %>% 
+  mutate(weight = weight/2)
+
+
+all_effort <- bind_rows(vacc_effort, cul_effort)
+
+all_effort_final <- all_effort %>% 
+  group_by(QUART) %>% 
+  summarise(weight = sum(weight, na.rm = T)) 
+
+ggplot() + 
   geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = quart_effort, aes(fill = events, col = events)) + 
+  geom_sf(data = all_effort_final %>% filter(weight > 0), aes(fill = weight, col = weight)) + 
+  # geom_sf(data = sett_all %>% filter(YEAR > 2018), size = 0.5, col = "red") +
   scale_fill_viridis_c(na.value = NA) + 
   scale_color_viridis_c(na.value = NA) + 
   theme_bw() + 
-  ggtitle("Vaccination programme effort in 5 day units")
+  ggtitle("Sampling effort of culling and vaccination programmes combined")
+
   
-
-gridExtra::grid.arrange(p1, p2, nrow = 1)
-
-
-sett_2015 <- sett_all%>% 
-  filter(DATE_OF_FIELD_VISIT >= 2015) %>% 
-  filter(MAIN_SETT == "Yes")
-
-sett_2019 <- sett_all%>% 
-  filter(DATE_OF_FIELD_VISIT >= 2019) %>% 
-  filter(MAIN_SETT == "Yes")
-
-
-pp1 <- ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = sett_2015, col = "violet") +
-  theme_bw() + 
-  ggtitle("Setts from 2015 onwards")
-
-pp2 <- ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = sett_2019, col = "orange") +
-  theme_bw() + 
-  ggtitle("Setts from 2019 onwards")
-
-gridExtra::grid.arrange(pp1, pp2, nrow = 1)
+saveRDS(all_effort_final, file = "Data/Inla/weightedSampler.RDS")
+all_effort_final <- readRDS("Data/Inla/weightedSampler.RDS")
