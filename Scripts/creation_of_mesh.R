@@ -34,71 +34,57 @@ ggplot(boundary) +
 
 #### Creation of mesh ####
 
-### Transform to sp objects
+meshes = list()
+meshes[[1]] =  fm_mesh_2d_inla(boundary = list(boundary, boundary2),
+                               max.edge = c(20,80), cutoff = 20, crs = projKM)
+# meshes[[1]] <- mesh_20k
 
-boundary_sp <- as_Spatial(boundary)
-boundary2_sp <- as_Spatial(boundary2)
-sett_all_sp <- sett_all %>% 
-  filter(!st_is_empty(geometry)) %>% 
-  as_Spatial()
-crs(boundary_sp)
-crs(boundary2_sp)
-crs(sett_all_sp)
+ggplot() + gg(meshes[[1]]) + coord_equal()
 
-### Create boundary objects
+n_meshes = 4
 
-boundary_in <- inla.sp2segment(boundary_sp)
-boundary_out <- inla.sp2segment(boundary2_sp)
-boundary_in$crs
-boundary_out$crs
+for(i in 2:n_meshes) {
+  meshes[[i]] = fmesher:::fm_subdivide(meshes[[i-1]])
+  
+  sapply(meshes, function(x)x$n) %>% plot()
+  
+} 
 
-### Create mesh
+saveRDS(meshes, file = "Data/Inla/meshes.RDS")
 
-# Cutoff of 10 km (segments can't be smaller than 10 km, that's why we needed the simplification)
-# The edge of the triangles in the inner mesh is 20km
-# The edge of the triangles in the outer mesh is 50km 
+p1 <- ggplot() + gg(meshes[[1]]) + coord_equal()
+p2 <- ggplot() + gg(meshes[[2]]) + coord_equal()
+p3 <- ggplot() + gg(meshes[[3]]) + coord_equal()
+p4 <- ggplot() + gg(meshes[[4]]) + coord_equal()
 
-# parameters from deer model (ish) i.e. very large mesh 
-mesh_20k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                         max.edge = c(20, 100), 
-                         cutoff = 20, crs = boundary_out$crs)
+gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2)
 
-# parameters at same resolution as smoothed covars
-mesh_5k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                         max.edge = c(5, 100), 
-                         cutoff = 5, crs = boundary_out$crs)
+# samplers <- readRDS("Data/Inla/samplers.RDS")
+samplers <- readRDS("Data/Inla/weightedSampler.RDS")
+samplers <- readRDS("Data/Inla/samplers.RDS")
+samplers %<>% st_transform(crs = projKM)
 
-mesh_4k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                        max.edge = c(5, 100), 
-                        cutoff = 5, crs = boundary_out$crs)
+samplers <- samplers %>% 
+  filter(weight >0) %>% 
+  group_by(weight) %>% 
+  summarise()
 
-# parameters at smaller resolution than smoothed covars
-mesh_2k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                        max.edge = c(2, 100), 
-                        cutoff = 2, crs = boundary_out$crs)
+samplers2 <- samplers %>% 
+  select(-weight)
 
-mesh_1k <- inla.mesh.2d(boundary = list(boundary_in, boundary_out), 
-                        max.edge = c(1, 100), 
-                        cutoff = 1, crs = boundary_out$crs)
-#### Plot mesh ####
-par(mfrow = c(2,3))
-plot(mesh_20k)
-plot(boundary_sp, border = "green", add = T)
-plot(boundary2_sp, border = "orange", add = T)
+ggplot(samplers) + 
+  geom_sf(aes(fill = weight, col = weight)) + 
+  theme_bw()
 
-plot(mesh_5k)
-plot(mesh_4k)
-plot(mesh_2k)
-plot(mesh_1k)
-par(mfrow = c(1,1))
 
-# saveRDS(poly.barrier, file = "data/barrier.RDS")
-saveRDS(mesh_20k, file = "Data/Inla/mesh_20k.RDS")
-saveRDS(mesh_5k, file = "Data/Inla/mesh_5k.RDS")
-saveRDS(mesh_4k, file = "Data/Inla/mesh_4k.RDS")
-saveRDS(mesh_2k, file = "Data/Inla/mesh_2k.RDS")
-saveRDS(mesh_1k, file = "Data/Inla/mesh_1k.RDS")
-saveRDS(boundary2_sp, file = "Data/outer_boundary.RDS")
-saveRDS(boundary_sp, file = "Data/inner_boundary.RDS")
+meshes <- readRDS("Data/Inla/meshes.RDS")
 
+int_points4 = fm_int(meshes[[4]], samplers = samplers)
+int_points3 = fm_int(meshes[[3]], samplers = samplers)
+
+int_points4b <- fm_int(meshes[[4]], samplers = samplers)
+
+saveRDS(int_points4, file = "Data/Inla/int_points4_weighted.RDS")
+saveRDS(int_points4b, file = "Data/Inla/int_points4_nonweighted.RDS")
+saveRDS(int_points3, file = "Data/Inla/int_points3_weighted.RDS")
 
