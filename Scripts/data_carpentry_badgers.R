@@ -151,6 +151,17 @@ badgers_all <- bind_rows(c_badgers, v_badgers) %>%
 
 badgers_all <- readRDS("Data/badgers_all_2023.RDS")
 
+
+## remove repeated observations of goodgers 
+
+badgers_all <- badgers_all %>%
+  group_by(BADGER_ID) %>%
+  arrange(DATE_CAUGHT) %>% 
+  slice(1) %>%
+  ungroup()
+
+saveRDS(badgers_all, file = "Data/badgers_all_2023.RDS")
+
 # Date captured
 ggplot(badgers_all) + 
   geom_bar(aes(x = DATE_CAUGHT, fill = MONTH, group = MONTH)) + 
