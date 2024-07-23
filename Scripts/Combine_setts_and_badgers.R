@@ -28,6 +28,9 @@ saveRDS(all_data, file = "Data/badgers_setts.RDS")
 
 # How many capture events per sett
 
+all_data <- readRDS(file = "Data/badgers_setts.RDS")  
+
+
 all_data %>% 
   group_by(SETT_ID) %>% 
   summarise(n_capture_events = n_distinct(CAPTURE_BLOCK_EVENT)) %>%  
@@ -78,16 +81,31 @@ all_data %>%
   ggtitle("N capture events for setts checked more than once")
 
 # Jitter badger locations to model them as lgcp ####
+sampler <- readRDS("Data/Inla/weightedSampler.RDS")
+ireland <- readRDS("Data/Inla/ireland_outline_km.RDS")
+
+sampler <- sampler %>% 
+  filter(weight > 0) %>% 
+  st_buffer(0, by)
 
 all_data_jit <- all_data %>% 
-  st_jitter(amount = 1000)
+  st_jitter(amount = 500) %>% 
+  mutate(YEAR = year(DATE_CAUGHT)) %>% 
+  filter(YEAR > 2018)
+  
 
-ggplot(all_data_jit) +
+
+ggplot(filtered) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(data = sampler, fill = NA, col = "red") + 
   geom_sf(col = "black", alpha = 0.5, size = 0.5) + 
   theme_bw()
 
-saveRDS(all_data_jit, "Data/badgers_jittered.RDS")
+
+filtered = st_filter(all_data_jit, sampler, .pred = st_intersects)
+
+
+saveRDS(filtered, "Data/badgers_jittered_filtered.RDS")
 
 # Summarise data by sett to model as Poison count data ####
 
