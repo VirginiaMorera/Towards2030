@@ -61,16 +61,14 @@ gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2)
 
 # samplers <- readRDS("Data/Inla/samplers.RDS")
 samplers <- readRDS("Data/Inla/weightedSampler.RDS")
-samplers <- readRDS("Data/Inla/samplers.RDS")
+# samplers <- readRDS("Data/Inla/samplers.RDS")
 samplers %<>% st_transform(crs = projKM)
 
 samplers <- samplers %>% 
-  filter(weight >0) %>% 
-  group_by(weight) %>% 
-  summarise()
-
-samplers2 <- samplers %>% 
-  select(-weight)
+  filter(WEIGHT >0) %>% 
+  group_by(WEIGHT) %>% 
+  summarise() %>% 
+  rename(weight = WEIGHT)
 
 ggplot(samplers) + 
   geom_sf(aes(fill = weight, col = weight)) + 
@@ -80,11 +78,9 @@ ggplot(samplers) +
 meshes <- readRDS("Data/Inla/meshes.RDS")
 
 int_points4 = fm_int(meshes[[4]], samplers = samplers)
-int_points3 = fm_int(meshes[[3]], samplers = samplers)
-
-int_points4b <- fm_int(meshes[[4]], samplers = samplers)
 
 saveRDS(int_points4, file = "Data/Inla/int_points4_weighted.RDS")
-saveRDS(int_points4b, file = "Data/Inla/int_points4_nonweighted.RDS")
-saveRDS(int_points3, file = "Data/Inla/int_points3_weighted.RDS")
 
+ggplot(int_points4) + 
+  geom_sf(aes(col = weight)) + 
+  theme_bw()
