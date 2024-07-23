@@ -18,6 +18,8 @@ library(ggthemes)
 library(fmesher)
 library(patternogram)
 library(usdm)
+library(patchwork)
+library(tidyterra)
 
 getmode <- function(v) {
   uniqv <- unique(v)
