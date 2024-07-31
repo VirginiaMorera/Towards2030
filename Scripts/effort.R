@@ -6,7 +6,14 @@ source("Scripts/setup.R")
 cap <- read.csv("Data/Raw/tbl_capture_EVENTS_2023.csv") # culling capture events
 # badgers_all <- readRDS("Data/badgers_setts.RDS") # badgers georef to capture sett
 sett_all <- readRDS("Data/sett_all_2023.RDS")
+his1 <- read_excel(path = "Data/Raw/tbl_sett_record_history1.xlsx")
+his2 <- read_excel(path = "Data/Raw/tbl_sett_record_history2.xlsx", 
+                   col_names = names(his1))
+his3 <- read_excel(path = "Data/Raw/tbl_sett_record_history3.xlsx", 
+                   col_names = names(his1))
+sett_history <- bind_rows(his1, his2, his3)
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
+ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp")
 vac_cap <- read.csv("Data/Raw/tbl_vaccine_2023.csv") # vaccine capture data
 
 quart <- read_sf("Data/Raw/just_quartiles.shp") %>% 
@@ -54,6 +61,7 @@ p1 <- ggplot() +
 # culling capture events ####
 
 str(cap)
+str(sett_history)
 str(sett_all)
 
 # clean capture effort data
@@ -67,23 +75,33 @@ cap_clean  <-  cap  %>%
   filter(YEAR > 2018)
 
 # clean sett data (which will give us the location of the capture events )
-sett_clean <- sett_all %>% 
-  filter(CAPTURE_BLOCK_ID %!in% c("NOT ASSIGN", "NOT ASSIGNE", "Not Assigne")) %>% 
-  mutate(CAPTURE_BLOCK_EVENT_sett = paste(CAPTURE_BLOCK_ID, CAPTURE_BLOCK_EVENT, sep = "/")) %>% 
-  select(SETT_ID, CAPTURE_BLOCK_EVENT_sett, YEAR, geometry) %>% 
+sett_geometry <- sett_all %>% 
+  select(SETT_ID, geometry) %>% 
   distinct()
 
+# clean sett history data 
+sett_history_clean <- sett_history %>% 
+  select(SETT_ID, CAPTURE_BLOCK_EVENT, CAPTURE_BLOCK_ID) 
+
+# merge sett_history with capture data to subset only the capture events we're interested in 
+cap_clean2 <- cap_clean %>% 
+  left_join(sett_history_clean, by = "CAPTURE_BLOCK_EVENT")
+# this has repeated rows for every capture block event because there's more than one sett per event
+
+# add sett location
+cap_clean2 <- cap_clean2 %>% 
+  inner_join(sett_geometry) %>% 
+  st_as_sf(sf_column_name = "geometry") %>% 
+  st_set_crs(st_crs(quart))
+
 # intercept setts and quartiles to see in which sett a quartile is 
-quart2 <- st_intersection(quart, sett_clean) %>% 
+setts_per_quartile <- st_intersection(quart, cap_clean2) %>% 
   filter(YEAR > 2018) %>% 
   st_drop_geometry()
 
-# according to the numbers below, we've lost 12588 capture events that had no setts found
-length(unique(quart2$CAPTURE_BLOCK_EVENT_sett))
-length(unique(cap_clean$CAPTURE_BLOCK_EVENT))
 
 # from 2019 onwards, how many unique capture events in each quartile
-quart_sum <- quart2 %>% 
+quart_sum <- setts_per_quartile %>% 
   dplyr::select(-SETT_ID) %>% 
   distinct() %>% 
   mutate(DURATION = 11) %>% # we assume all capture events lasted 11 days
@@ -159,3 +177,14 @@ ggplot() +
 
 saveRDS(all_effort_final, file = "Data/Inla/weightedSampler.RDS")
 all_effort_final <- readRDS("Data/Inla/weightedSampler.RDS")
+
+ggplot() + 
+  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
+  geom_sf(data = all_effort_final, aes(fill = WEIGHT, col = WEIGHT)) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "black") + 
+  scale_fill_viridis_c(na.value = NA) + 
+  scale_color_viridis_c(na.value = NA) + 
+  theme_bw() + 
+  labs(title = "Sampling effort of culling and vaccination programmes combined", 
+       fill = "N days (log)", 
+       col = "N days (log)") 
