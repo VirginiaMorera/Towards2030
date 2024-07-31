@@ -65,10 +65,9 @@ samplers <- readRDS("Data/Inla/weightedSampler.RDS")
 samplers %<>% st_transform(crs = projKM)
 
 samplers <- samplers %>% 
-  filter(WEIGHT >0) %>% 
-  group_by(WEIGHT) %>% 
+  group_by(NDAYS) %>% 
   summarise() %>% 
-  rename(weight = WEIGHT)
+  rename(weight = NDAYS) 
 
 ggplot(samplers) + 
   geom_sf(aes(fill = weight, col = weight)) + 
@@ -79,8 +78,64 @@ meshes <- readRDS("Data/Inla/meshes.RDS")
 
 int_points4 = fm_int(meshes[[4]], samplers = samplers)
 
-saveRDS(int_points4, file = "Data/Inla/int_points4_weighted.RDS")
+saveRDS(int_points4, file = "Data/Inla/int_points4_weighted_NDAYS.RDS")
 
 ggplot(int_points4) + 
-  geom_sf(aes(col = weight)) + 
+  geom_sf(aes(col = weight), size = 1) + 
   theme_bw()
+
+
+# weighted sampler for culling programme ####
+
+cul_samplers <- readRDS("Data/Inla/cul_effort.RDS")
+# samplers <- readRDS("Data/Inla/samplers.RDS")
+cul_samplers %<>% st_transform(crs = projKM)
+
+cul_samplers <- cul_samplers %>% 
+  group_by(NDAYS) %>% 
+  summarise() %>% 
+  rename(weight = NDAYS) 
+
+ggplot(cul_samplers) + 
+  geom_sf(aes(fill = weight, col = weight)) + 
+  scale_fill_viridis() + 
+  scale_color_viridis() + 
+  theme_bw()
+
+meshes <- readRDS("Data/Inla/meshes.RDS")
+
+int_points4_cull = fm_int(meshes[[4]], samplers = cul_samplers)
+
+saveRDS(int_points4_cull, file = "Data/Inla/int_points4_culling.RDS")
+
+ggplot(int_points4_cull) + 
+  geom_sf(aes(col = weight), size = 1) + 
+  theme_bw()
+
+# weighted sampler for vaccination programme ####
+
+vac_samplers <- readRDS("Data/Inla/vacc_effort.RDS")
+vac_samplers %<>% st_transform(crs = projKM)
+
+vac_samplers <- vac_samplers %>% 
+  group_by(NDAYS) %>% 
+  summarise() %>% 
+  rename(weight = NDAYS) %>% 
+  drop_na(weight)
+
+ggplot(vac_samplers) + 
+  geom_sf(aes(fill = weight, col = weight)) + 
+  scale_fill_viridis() + 
+  scale_color_viridis() + 
+  theme_bw()
+
+meshes <- readRDS("Data/Inla/meshes.RDS")
+
+int_points4_vac = fm_int(meshes[[4]], samplers = vac_samplers)
+
+saveRDS(int_points4_vac, file = "Data/Inla/int_points4_vacc.RDS")
+
+ggplot(int_points4_vac) + 
+  geom_sf(aes(col = weight), size = 1) + 
+  theme_bw()
+
