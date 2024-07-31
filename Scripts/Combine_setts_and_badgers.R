@@ -21,7 +21,7 @@ all_data <- badgers_all %>%
   left_join(sett_geometry) %>% 
   distinct() %>% 
   filter(!is.na(x_coord)) %>% 
-  st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland)) 
+  st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland), remove = F) 
   
 saveRDS(all_data, file = "Data/badgers_setts.RDS")  
 # Display badgerXsett data ####
@@ -38,8 +38,6 @@ all_data %>%
   geom_bar(aes(x = n_capture_events)) + 
   theme_bw() + 
   labs(x = "Number of capture events", y = "Number of setts")
-
-table(x$n_capture_events) # ~11000 setts have only been checked once (to keep in mind for CMR)
 
 # map capture events per sett and year spatially
 all_data %>% 
@@ -85,16 +83,14 @@ sampler <- readRDS("Data/Inla/weightedSampler.RDS")
 ireland <- readRDS("Data/Inla/ireland_outline_km.RDS")
 
 sampler <- sampler %>% 
-  filter(weight > 0) %>% 
-  st_buffer(0, by)
+  filter(NDAYS > 0) %>% 
+  st_buffer(0)
 
 all_data_jit <- all_data %>% 
   st_jitter(amount = 500) %>% 
   mutate(YEAR = year(DATE_CAUGHT)) %>% 
   filter(YEAR > 2018)
   
-
-
 ggplot(filtered) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(data = sampler, fill = NA, col = "red") + 
@@ -107,6 +103,41 @@ filtered = st_filter(all_data_jit, sampler, .pred = st_intersects)
 
 saveRDS(filtered, "Data/badgers_jittered_filtered.RDS")
 
+badgers_jit <- readRDS("Data/badgers_jittered_filtered.RDS")
+
+badgers_2 <- badgers_jit %>% 
+  st_transform(4326) %>% 
+  mutate(Lon = st_coordinates(.)[,1], 
+         Lat = st_coordinates(.)[,2], 
+         Spec = "Badger")
+
+badgers_thin <- spThin::thin(badgers_2, 
+                             long.col = "Lon", 
+                             lat.col = "Lat",
+                             spec.col = "BADGER_ID",
+                             thin.par = 0.25, 
+                             reps = 1, 
+                             out.dir = "Data/") 
+
+
+badgers_thin <- read.csv("Data/thinned_data_thin1.csv")
+
+badgers_thin <- badgers_thin %>% 
+  st_as_sf(coords = c("Lon", "Lat"), crs = 4326)  %>% 
+  st_transform(st_crs(ireland))
+
+ggplot() + 
+  geom_sf(data = ireland) + 
+  geom_sf(data = badgers_jit, size = 1) + 
+  theme_bw() + 
+  
+ggplot() + 
+  geom_sf(data = ireland) + 
+  geom_sf(data = badgers_thin, size = 1) + 
+  theme_bw() 
+  
+saveRDS(badgers_thin, file = "Data/badgers_thin.RDS")  
+
 # Summarise data by sett to model as Poison count data ####
 
 p <- function(v) {
@@ -118,7 +149,7 @@ p <- function(v) {
 all_data_sum <- all_data %>% 
   st_set_geometry(NULL) %>% 
   mutate(YEAR = as.numeric(levels(YEAR))[YEAR]) %>% 
-  filter(YEAR >= 2015) %>% 
+  filter(YEAR > 2018) %>% 
   group_by(SETT_ID, CAPTURE_BLOCK_EVENT) %>%
   summarise(n_badgers = n()) %>% 
   group_by(SETT_ID) %>% 
@@ -126,5 +157,80 @@ all_data_sum <- all_data %>%
     effort = n(), 
     badgers = p(as.character(n_badgers)))
   
-  
-  
+# filter setts outside of the effort ####
+effort <- readRDS("Data/Inla/weightedSampler.RDS") %>% 
+  filter(NDAYS > 0)
+
+setts_in = st_filter(sett_all, effort, .pred = st_intersects)
+saveRDS(setts_in, file = "Data/sett_all_inside_effort.RDS")
+
+# Divide into vaccination and culling badgers to try and model separately ####
+
+all_data <- readRDS(file = "Data/badgers_setts.RDS")
+
+## culling ####
+badgers_cull <- all_data %>% 
+  subset(PROGRAMME = "Culling") %>% 
+  mutate(YEAR = year(DATE_CAUGHT)) %>% 
+  filter(YEAR >2018)
+
+cul_effort <- readRDS("Data/Inla/cul_effort.RDS")
+
+cul_sampler <- cul_effort %>% 
+  filter(NDAYS > 0) %>%
+  st_buffer(0)
+
+# check all culled badgers are within the effort zones
+
+ggplot(badgers_cull) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(data = cul_sampler, aes(fill = NDAYS)) + 
+  scale_fill_viridis() + 
+  geom_sf(col = "black", alpha = 0.5, size = 0.5) + 
+  theme_bw()
+
+badgers_cull_in = st_filter(badgers_cull, cul_sampler, .pred = st_intersects)
+
+culling_jit <- badgers_cull_in %>% 
+  st_jitter(amount = 500) 
+
+culling_filtered = st_filter(culling_jit, cul_sampler, .pred = st_intersects)
+
+saveRDS(culling_filtered, "Data/culling_badgers_jittered_filtered.RDS")
+
+## vaccination ####
+badgers_vac <- all_data %>% 
+  subset(PROGRAMME = "Vaccination") %>% 
+  mutate(YEAR = year(DATE_CAUGHT)) %>% 
+  filter(YEAR >2018)
+
+vac_effort <- readRDS("Data/Inla/vacc_effort.RDS")
+
+vac_sampler <- vac_effort %>% 
+  filter(NDAYS > 0) 
+
+# check all culled badgers are within the effort zones
+
+ggplot(badgers_vac) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(data = vac_sampler, aes(fill = NDAYS)) + 
+  scale_fill_viridis() + 
+  geom_sf(col = "black", alpha = 0.5, size = 0.5) + 
+  theme_bw()
+
+badgers_vac_in = st_filter(badgers_vac, vac_sampler, .pred = st_intersects)
+
+vac_jit <- badgers_vac_in %>% 
+  st_jitter(amount = 500) 
+
+vac_filtered = st_filter(vac_jit, vac_sampler, .pred = st_intersects)
+
+ggplot(vac_filtered) +
+  geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
+  geom_sf(data = vac_sampler, aes(fill = NDAYS)) + 
+  scale_fill_viridis() + 
+  geom_sf(col = "black", alpha = 0.5, size = 0.5) + 
+  theme_bw()
+
+saveRDS(vac_filtered, "Data/vaccination_badgers_jittered_filtered.RDS")
+
