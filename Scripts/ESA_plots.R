@@ -110,9 +110,111 @@ ggplot() +
   theme_bw()
 dev.off()
 
-## Covariates
+### Covariates ####
 
-## Sett predictions ####
+env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
+env_vars <- trim(env_vars)
+env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
+env_vars$swf <- env_vars$small_woody_features/100
+
+png("Outputs/ESA_Figures/env_Vars.jpg", height = 8.3, width = 11.7, res = 600, units = "in")
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = elevation)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  labs(fill = "Elevation (m)") +
+  theme_bw() + 
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = GrasslandPastures)) + 
+  scale_fill_viridis_c(na.value = NA, labels = scales::percent_format(accuracy = 1)) + 
+  labs(fill = "Grasslands \nand pastures") +
+  theme_bw() +
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = forest_distances)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  labs(fill = "Distance to \nforest edge (m)") +
+  theme_bw() +
+  
+
+  
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = slope)) + 
+  scale_fill_viridis_c(na.value = NA, labels = scales::percent_format(accuracy = 1)) + 
+  labs(fill = "Slope") +
+  theme_bw() +
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = Transitionalwoodland.shrub)) + 
+  scale_fill_viridis_c(na.value = NA, 
+                       labels = scales::percent_format(accuracy = 1)) + 
+  labs(fill = "Transitional woodland \nand shrub") +
+  theme_bw() +  
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = swf)) + 
+  scale_fill_viridis_c(na.value = NA, 
+                       labels = scales::percent_format(accuracy = 1)) + 
+  labs(fill = "Small woody \nfeatures") +
+  theme_bw() +
+  
+
+  
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = human_footprint_index)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  labs(fill = "Human footprint \nindex") +
+  theme_bw() +
+
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = topographic_wetness_index)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  labs(fill = "Topographic \nwetness index") +
+  theme_bw() +  
+  
+
+plot_layout(ncol = 3, byrow = T)
+dev.off()
+
+### Mesh figures  ####
+
+meshes <- readRDS("Data/Inla/meshes.RDS")
+ipoints1 <- fm_int(meshes[[1]])
+ipoints2 <- fm_int(meshes[[2]])
+ipoints4 <- fm_int(meshes[[4]])
+
+png("Outputs/ESA_Figures/mesh1.jpg", width = 7.46, height = 7.79, res = 600, units = "in")
+
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = elevation)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  gg(meshes[[1]]) + 
+  geom_sf(data = ipoints1, col = "red") + 
+  coord_sf(xlim = st_bbox(env_vars)[c(1,3)], 
+           ylim = st_bbox(env_vars)[c(2,4)], 
+           expand = F) + 
+  theme_bw() + 
+  labs(title = "Elevation", x = "", y = "", fill = "Elevation")
+dev.off()
+
+png("Outputs/ESA_Figures/mesh2.jpg", width = 7.46, height = 7.79, res = 600, units = "in")
+ggplot() + 
+  geom_spatraster(data = env_vars, aes(fill = GrasslandPastures)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  gg(meshes[[2]]) + 
+  geom_sf(data = ipoints2, col = "red") + 
+  coord_sf(xlim = st_bbox(env_vars)[c(1,3)], 
+           ylim = st_bbox(env_vars)[c(2,4)], 
+           expand = F) + 
+  labs(title = "Elevation", x = "", y = "", fill = "Pastures") + 
+  theme_bw()
+dev.off()
+
+
+## Sett ####
+
+### predictions ####
 
 png("Outputs/ESA_Figures/sett_prediction.jpg", width = 7.46*2, height = 7.79, 
     res = 600, units = "in")
@@ -137,7 +239,7 @@ ggplot() +
 dev.off()
 
 
-## Sett covariate effect ####
+### covariate effect ####
 png("Outputs/ESA_Figures/sett_covars_effect.jpg", height = 10, width = 8.5, res = 600, units = "in")
 ggplot() + 
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
@@ -177,7 +279,7 @@ ggplot() +
 plot_layout(ncol = 2)
 dev.off()
 
-## evaluate effects ####
+### evaluate effects ####
 png("Outputs/ESA_Figures/sett_covars_eval.jpg", height = 9, width = 11, res = 600, units = "in")
 multiplot(
   eval.elev,
@@ -187,4 +289,143 @@ multiplot(
   eval.grasslandsPastures,
   cols = 2
 )
+dev.off()
+
+## Badgers ####
+
+### predictions ####
+
+png("Outputs/ESA_Figures/new_badger_prediction.jpg", width = 7.46*2, height = 7.79, 
+    res = 600, units = "in")
+ggplot() + 
+  gg(data = x, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) + 
+  labs(x = "", y = "", fill = "Median", 
+       title = "Badger distribution (linear scale)") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "A") +
+  NULL + 
+  
+  ggplot() + 
+  gg(data = spb, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
+  theme_bw() + 
+  # scale_fill_viridis_c(option = "A") +
+  scale_fill_distiller(palette = 'RdBu') + 
+  labs(x = "", y = "", fill = "Median", title = "Spatial random field")   
+dev.off()
+
+
+### covariate effect ####
+png("Outputs/ESA_Figures/new_badger_covars_effect.jpg", height = 10, width = 8.5, res = 600, units = "in")
+ggplot() + 
+  gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "Elevation effect", x = "", y = "", fill = "Median") +
+  
+ggplot() + 
+  gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "Slope effect", x = "", y = "", fill = "Median") +
+  
+ggplot() + 
+  gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "Pasture and grasslands effect", x = "", y = "", fill = "Median") +
+  
+ggplot() + 
+  gg(data = fordist_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "distance to forest edge effect", 
+       x = "", y = "", fill = "Median") +
+  
+ggplot() + 
+  gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "Human footprint index effect", x = "", y = "", fill = "Median") +
+  
+  
+  ggplot() + 
+  gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_outline_sf, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  labs(title = "Topographic wetness index shrub", x = "", y = "", fill = "Median") +
+  
+  plot_layout(ncol = 2)
+dev.off()
+
+### evaluate effects ####
+png("Outputs/ESA_Figures/new_badger_covars_eval.jpg", height = 9, width = 11, res = 600, units = "in")
+multiplot(
+  eval.elev,
+  eval.grasslandsPastures,
+  eval.hfi,
+  eval.slope,
+  eval.forestDist, 
+  eval.topo,
+  cols = 2 
+)
+dev.off()
+
+
+### Badgers per sett
+badgers_r <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
+sett_r <- readRDS("Outputs/sett_model/response_predictor.RDS")
+
+inside = sapply(st_intersects(badgers_r$all, ireland_outline_sf), function(x){length(x)==0})
+badgers_r <- badgers_r$all[!inside,]
+
+inside = sapply(st_intersects(sett_r$all, ireland_outline_sf), function(x){length(x)==0})
+sett_r <- sett_r$all[!inside,]
+
+
+sett_r <- sett_r %>% 
+  mutate(scaledq0.5 = scale01(q0.5))
+
+badgers_r <- badgers_r %>% 
+  mutate(scaledq0.5 = scale01(q0.5), 
+         ratio = q0.5/sett_r$q0.5)
+
+png("Outputs/response_prediction_with_Vacc.jpg", width = 7.46*2, height = 7.79,  res = 600, units = "in")
+ggplot() + 
+  gg(data = sett_r, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
+  ggtitle("Sett distribution (response scale)") +
+  labs(x = "", y = "", fill = "Median") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+
+ggplot() + 
+  gg(data = badgers_r, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
+  ggtitle("Badger distribution (response scale)") +
+  labs(x = "", y = "", fill = "Median") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+
+plot_layout(ncol = 2)
+dev.off()
+
+png("Outputs/badgers_per_sett_with_Vacc.jpg", 
+    width = 7.46, height = 7.79,  res = 600, units = "in")
+ggplot() + 
+  gg(data = badgers_r, aes(fill = ratio), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
+  ggtitle("Badgers per sett") +
+  labs(x = "", y = "", fill = "Median") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+  NULL
 dev.off()
