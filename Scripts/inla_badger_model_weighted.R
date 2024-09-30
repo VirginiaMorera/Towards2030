@@ -142,7 +142,7 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(2, 0.9), # 1 third range mesh
+                                          prior.range = c(2, 0.5), # 1 third range mesh
                                           prior.sigma = c(1, 0.1))
 
 ### 1d mesh for distance to roads ####
