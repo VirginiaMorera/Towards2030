@@ -280,7 +280,7 @@ plot_layout(ncol = 2)
 dev.off()
 
 ### evaluate effects ####
-png("Outputs/ESA_Figures/sett_covars_eval.jpg", height = 9, width = 11, res = 600, units = "in")
+png("Outputs/Aims/sett_covars_eval.jpg", width = 7.46, height = 7.79, res = 600, units = "in")
 multiplot(
   eval.elev,
   eval.swf,
@@ -367,7 +367,8 @@ ggplot() +
 dev.off()
 
 ### evaluate effects ####
-png("Outputs/ESA_Figures/new_badger_covars_eval.jpg", height = 9, width = 11, res = 600, units = "in")
+png("Outputs/aims/badger_covars_eval.jpg", 
+    width = 7.46, height = 7.79, res = 600, units = "in")
 multiplot(
   eval.elev,
   eval.grasslandsPastures,
@@ -418,7 +419,20 @@ ggplot() +
 plot_layout(ncol = 2)
 dev.off()
 
-png("Outputs/badgers_per_sett_with_Vacc.jpg", 
+png("Outputs/Aims/badgers_per_sett_with_Vacc.jpg", 
+    width = 7.46, height = 7.79,  res = 600, units = "in")
+ggplot() + 
+  gg(data = badgers_r, aes(fill = ratio), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
+  ggtitle("Badgers per sett") +
+  labs(x = "", y = "", fill = "Median") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+  NULL
+dev.off()
+
+
+png("Outputs/Aims/badgers_all_response.jpg", 
     width = 7.46, height = 7.79,  res = 600, units = "in")
 ggplot() + 
   gg(data = badgers_r, aes(fill = ratio), geom = "tile") +
