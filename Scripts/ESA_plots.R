@@ -367,14 +367,14 @@ ggplot() +
 dev.off()
 
 ### evaluate effects ####
-png("Outputs/aims/badger_covars_eval.jpg", 
+png("Outputs/sett_new_covars_eval.jpg", 
     width = 7.46, height = 7.79, res = 600, units = "in")
 multiplot(
   eval.elev,
   eval.grasslandsPastures,
   eval.hfi,
   eval.slope,
-  eval.forestDist, 
+  eval.forestdist,
   eval.topo,
   cols = 2 
 )
@@ -397,7 +397,8 @@ sett_r <- sett_r %>%
 
 badgers_r <- badgers_r %>% 
   mutate(scaledq0.5 = scale01(q0.5), 
-         ratio = q0.5/sett_r$q0.5)
+         ratio = q0.5/sett_r$q0.5, 
+         scaled_ratio = scaledq0.5/sett_r$scaledq0.5)
 
 png("Outputs/response_prediction_with_Vacc.jpg", width = 7.46*2, height = 7.79,  res = 600, units = "in")
 ggplot() + 
@@ -422,7 +423,8 @@ dev.off()
 png("Outputs/Aims/badgers_per_sett_with_Vacc.jpg", 
     width = 7.46, height = 7.79,  res = 600, units = "in")
 ggplot() + 
-  gg(data = badgers_r, aes(fill = ratio), geom = "tile") +
+  gg(data = badgers_r, 
+     aes(fill = ratio), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
   ggtitle("Badgers per sett") +
   labs(x = "", y = "", fill = "Median") +  
@@ -435,11 +437,10 @@ dev.off()
 png("Outputs/Aims/badgers_all_response.jpg", 
     width = 7.46, height = 7.79,  res = 600, units = "in")
 ggplot() + 
-  gg(data = badgers_r, aes(fill = ratio), geom = "tile") +
+  gg(data = badgers_r, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "lightgray") + 
-  ggtitle("Badgers per sett") +
+  ggtitle("Badger distribution (response scale)") +
   labs(x = "", y = "", fill = "Median") +  
   theme_bw() + 
-  scale_fill_viridis_c(option = "D") +
-  NULL
+  scale_fill_viridis_c(option = "D")
 dev.off()
