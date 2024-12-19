@@ -134,10 +134,13 @@ vacc_effort <- quart_effort %>%
 
 saveRDS(vacc_effort, file = "Data/Inla/vacc_effort.RDS")
 
+vacc_effort <- readRDS("Data/Inla/vacc_effort.RDS")
+
 cul_effort <- quart_sum %>% 
   select(QUARTILE, NDAYS) 
 
 saveRDS(cul_effort, file = "Data/Inla/cul_effort.RDS")
+cul_effort <- readRDS("Data/Inla/cul_effort.RDS")
 
 all_effort <- bind_rows(vacc_effort, cul_effort)
 
@@ -157,17 +160,17 @@ ggplot() +
        col = "N days")
 
 # log the nº of days as number of setts found will saturate with effort
-all_effort_final <- all_effort_final %>% 
+all_effort_final_log <- all_effort_final %>% 
   mutate(WEIGHT = log(NDAYS))
 
 
-ggplot(all_effort_final) +
+ggplot(all_effort_final_log) +
   geom_point(aes(x = NDAYS, y = WEIGHT)) + 
   theme_bw()
 
 ggplot() + 
   geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = all_effort_final, aes(fill = WEIGHT, col = WEIGHT)) + 
+  geom_sf(data = all_effort_final_log, aes(fill = WEIGHT, col = WEIGHT)) + 
   scale_fill_viridis_c(na.value = NA) + 
   scale_color_viridis_c(na.value = NA) + 
   theme_bw() + 
@@ -176,6 +179,8 @@ ggplot() +
        col = "N days (log)")
 
 saveRDS(all_effort_final, file = "Data/Inla/weightedSampler.RDS")
+saveRDS(all_effort_final_log, file = "Data/Inla/log_weightedSampler.RDS")
+
 all_effort_final <- readRDS("Data/Inla/weightedSampler.RDS")
 
 ggplot() + 
