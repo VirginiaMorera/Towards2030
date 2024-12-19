@@ -16,11 +16,15 @@ badgers_all <- readRDS("Data/culling_badgers_jittered_filtered.RDS") %>%
 #   filter(YEAR > 2018)
 
 env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
+setts <- terra::rast("Outputs/badger_linear_mean.grd")
+
+crs(setts) <- crs(env_vars)
 
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
 
 env_vars_scaled <- terra::scale(env_vars)
+setts_scaled <- scale(setts)
 
 
 ## load mesh boundaries and samplers ####
@@ -65,7 +69,6 @@ heat_loading <- env_vars_scaled$heat_loading_index
 topo_wetness <- env_vars_scaled$topographic_wetness_index
 human_footprint <- env_vars_scaled$human_footprint_index
 
-
 ## Prepare 1D meshes for covars ####
 
 ### 1d mesh for elevation ####
@@ -87,25 +90,25 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(1, 0.1), # 1 third range mesh
-                                      prior.sigma = c(0.5, 0.1))
+                                      prior.range = c(2, 0.1), # 1 third range mesh
+                                      prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for tree cover density ####
-mesh1D_tcd <- inla.mesh.1d(seq(min(tcd[], na.rm = T)-1, 
-                               max(tcd[], na.rm = T)+1, 
-                               length.out = 20), 
-                           degree = 2) 
-
-diff(range(tcd[], na.rm = T))/3
-matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-                                    prior.range = c(2.6, 0.5), # 1 third range mesh
-                                    prior.sigma = c(1, 0.5))
+# mesh1D_tcd <- inla.mesh.1d(seq(min(tcd[], na.rm = T)-1, 
+#                                max(tcd[], na.rm = T)+1, 
+#                                length.out = 20), 
+#                            degree = 2) 
+# 
+# diff(range(tcd[], na.rm = T))/3
+# matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
+#                                     prior.range = c(2.6, 0.5), # 1 third range mesh
+#                                     prior.sigma = c(1, 0.5))
 
 ### 1d mesh for small woody features ####
-mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1, 
-                               max(swf[], na.rm = T)+1, 
-                               length.out = 20), 
-                           degree = 2) 
+mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1,
+                               max(swf[], na.rm = T)+1,
+                               length.out = 20),
+                           degree = 2)
 
 diff(range(swf[], na.rm = T))/3
 matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
@@ -113,26 +116,26 @@ matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
                                     prior.sigma = c(0.5, 0.5))
 
 ### 1d mesh for transitional woodland and shrubs ####
-mesh1D_shrub <- inla.mesh.1d(seq(min(shrub[], na.rm = T)-1, 
-                                 max(shrub[], na.rm = T)+1, 
-                                 length.out = 20), 
-                             degree = 2) 
-
-diff(range(shrub[], na.rm = T))/3
-matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
-                                    prior.range = c(3.8, 0.5), # 1 third range mesh
-                                    prior.sigma = c(1, 0.5))
+# mesh1D_shrub <- inla.mesh.1d(seq(min(shrub[], na.rm = T)-1, 
+#                                  max(shrub[], na.rm = T)+1, 
+#                                  length.out = 20), 
+#                              degree = 2) 
+# 
+# diff(range(shrub[], na.rm = T))/3
+# matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
+#                                     prior.range = c(3.8, 0.5), # 1 third range mesh
+#                                     prior.sigma = c(1, 0.5))
 
 ### 1d mesh for peatbogs and moors ####
-mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogsandMoors[], na.rm = T)-1, 
-                                    max(peatbogsandMoors[], na.rm = T)+1, 
-                                    length.out = 20), 
-                                degree = 2) 
-
-diff(range(peatbogsandMoors[], na.rm = T))/3
-matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
-                                         prior.range = c(1.2, 0.5), # 1 third range mesh
-                                         prior.sigma = c(1, 0.5))
+# mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogsandMoors[], na.rm = T)-1, 
+#                                     max(peatbogsandMoors[], na.rm = T)+1, 
+#                                     length.out = 20), 
+#                                 degree = 2) 
+# 
+# diff(range(peatbogsandMoors[], na.rm = T))/3
+# matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
+#                                          prior.range = c(1.2, 0.5), # 1 third range mesh
+#                                          prior.sigma = c(1, 0.5))
 
 ### 1d mesh for grasslands and pastures ####
 mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
@@ -142,30 +145,30 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(2, 0.5), # 1 third range mesh
+                                          prior.range = c(2, 0.9), # 1 third range mesh
                                           prior.sigma = c(1, 0.1))
 
 ### 1d mesh for distance to roads ####
-mesh1D_distRoads <- inla.mesh.1d(seq(min(roadDist[], na.rm = T)-1,
-                                     max(roadDist[], na.rm = T)+1,
-                                     length.out = 20),
-                                 degree = 2)
-
-diff(range(roadDist[], na.rm = T))/3
-matern1D_distRoads <- inla.spde2.pcmatern(mesh1D_distRoads,
-                                          prior.range = c(4.6, 0.5), # 1 third range mesh
-                                          prior.sigma = c(1, 0.5))
+# mesh1D_distRoads <- inla.mesh.1d(seq(min(roadDist[], na.rm = T)-1,
+#                                      max(roadDist[], na.rm = T)+1,
+#                                      length.out = 20),
+#                                  degree = 2)
+# 
+# diff(range(roadDist[], na.rm = T))/3
+# matern1D_distRoads <- inla.spde2.pcmatern(mesh1D_distRoads,
+#                                           prior.range = c(4.6, 0.5), # 1 third range mesh
+#                                           prior.sigma = c(1, 0.5))
 
 ### 1d mesh for distance to paths ####
-mesh1D_distPaths <- inla.mesh.1d(seq(min(pathDist[], na.rm = T)-1,
-                                     max(pathDist[], na.rm = T)+1,
-                                     length.out = 20),
-                                 degree = 2)
-
-diff(range(pathDist[], na.rm = T))/3
-matern1D_distPaths <- inla.spde2.pcmatern(mesh1D_distPaths,
-                                          prior.range = c(1, 0.1), # 1 third range mesh
-                                          prior.sigma = c(0.01, 0.01))
+# mesh1D_distPaths <- inla.mesh.1d(seq(min(pathDist[], na.rm = T)-1,
+#                                      max(pathDist[], na.rm = T)+1,
+#                                      length.out = 20),
+#                                  degree = 2)
+# 
+# diff(range(pathDist[], na.rm = T))/3
+# matern1D_distPaths <- inla.spde2.pcmatern(mesh1D_distPaths,
+#                                           prior.range = c(1, 0.1), # 1 third range mesh
+#                                           prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for distance to forests ####
 mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
@@ -179,15 +182,15 @@ matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
                                             prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for heat loading index ####
-mesh1D_heat <- inla.mesh.1d(seq(min(heat_loading[], na.rm = T)-1,
-                                max(heat_loading[], na.rm = T)+1,
-                                length.out = 20),
-                            degree = 2)
-
-diff(range(heat_loading[], na.rm = T))/3
-matern1D_heat <- inla.spde2.pcmatern(mesh1D_heat,
-                                     prior.range = c(8.8, 0.5), # 1 third range mesh
-                                     prior.sigma = c(1, 0.5))
+# mesh1D_heat <- inla.mesh.1d(seq(min(heat_loading[], na.rm = T)-1,
+#                                 max(heat_loading[], na.rm = T)+1,
+#                                 length.out = 20),
+#                             degree = 2)
+# 
+# diff(range(heat_loading[], na.rm = T))/3
+# matern1D_heat <- inla.spde2.pcmatern(mesh1D_heat,
+#                                      prior.range = c(8.8, 0.5), # 1 third range mesh
+#                                      prior.sigma = c(1, 0.5))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -197,8 +200,8 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(2, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.1, 0.01))
+                                     prior.range = c(2, 0.01), # 1 third range mesh
+                                     prior.sigma = c(0.5, 0.01))
 
 
 ### 1d mesh for human footprint index ####
@@ -212,6 +215,18 @@ matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
                                     prior.range = c(2, 0.1), # 1 third range mesh
                                     prior.sigma = c(0.3, 0.1))
 
+### 1d mesh for sett distribution ####
+mesh1D_sett <- inla.mesh.1d(seq(min(setts_scaled[], na.rm = T)-1,
+                               max(setts_scaled[], na.rm = T)+1,
+                               length.out = 20),
+                           degree = 2)
+
+diff(range(setts_scaled[], na.rm = T))/3
+matern1D_sett <- inla.spde2.pcmatern(mesh1D_sett,
+                                    prior.range = c(4, 0.1), # 1 third range mesh
+                                    prior.sigma = c(2, 0.1))
+
+
 # M4 non-linear covar effects + spde ####
 
 ## Set up spde ####
@@ -221,8 +236,8 @@ matern2D_small <- inla.spde2.pcmatern(mesh,
                                       prior.sigma = c(0.01, 0.1)) #0.001
 
 matern2D_big <- inla.spde2.pcmatern(mesh,
-                                    prior.range = c(200, 0.01),  #1/3 y coordinate 90
-                                    prior.sigma = c(0.01, 0.01)) #0.01 at p 0.1 works
+                                    prior.range = c(90, 0.1),  #1/3 y coordinate 90
+                                    prior.sigma = c(2, 0.1)) #0.01 at p 0.1 works
 
 ## Formula ####
 
@@ -267,6 +282,8 @@ nonlinear_SPDE <- geometry ~  Intercept(1)  +
   # Eff.hfi(human_footprint, model = "linear") +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
   
+  Eff.sett(setts, model = matern1D_sett) +
+  
   Eff.smooth_big(geometry, model = matern2D_big) +
   # Eff.smooth_small(geometry, model = matern2D_small) +
   
@@ -302,6 +319,7 @@ lp4 <- predict(
     # heat = Eff.heat,
     topoWetness = Eff.topo,
     forestDistance = Eff.forestdist,
+    setts = Eff.sett,
     spfield_big = Eff.smooth_big,
     
     all = Intercept +
@@ -315,6 +333,7 @@ lp4 <- predict(
       Eff.topo +
       # Eff.heat +
       Eff.forestdist +
+      Eff.sett + 
       Eff.smooth_big
     ))
 
@@ -338,6 +357,7 @@ rp4 <- predict(
                 Eff.topo +
                 # Eff.heat +
                 Eff.forestdist +
+                Eff.sett + 
                 Eff.smooth_big
               )))
 
@@ -375,7 +395,7 @@ y <- rp4$all[!inside,]
 
 ggplot() + 
   gg(data = y, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_counties, fill = NA) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   ggtitle("Main sett distribution response") +
   labs(x = "", y = "", fill = "Mean") +  
@@ -416,24 +436,27 @@ topo_df <- lp4$topoWetness[!inside,]
 topo_df <- topo_df %>% 
   mutate(Variable = "Topographic wetness index")
 
+setts_df <- lp4$setts[!inside,]
+setts_df <- setts_df %>% 
+  mutate(Variable = "Sett relative density")
 
 ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Elevation", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Slope", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Grasslands and pastures", x = "", y = "", fill = "Mean") +
@@ -447,7 +470,7 @@ ggplot() +
 
 ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Human footprint index", x = "", y = "", fill = "Mean") +
@@ -461,18 +484,25 @@ ggplot() +
   
 ggplot() +
   gg(data = fordist_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Distance to the forest edge", x = "", y = "", fill = "Mean") +
   
 ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) +
   labs(title = "Topographic wetness index", x = "", y = "", fill = "Mean") +
 
+ggplot() +
+  gg(data = setts_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  theme_bw() +
+  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  labs(title = "Sett relative density", x = "", y = "", fill = "Mean") +
+  
 plot_layout(ncol = 3)
 
   
@@ -497,6 +527,7 @@ elevation_ipoints <- extract(elevation, int_pointsw)
 
 elev.pred <- predict(
   m4,
+  # n.samples = 100,
   n.samples = 1000,
   newdata = data.frame(elevation_var = seq(min(elevation[], na.rm = T), 
                                        quantile(elevation[], probs = 0.99, na.rm = T), 
@@ -513,6 +544,7 @@ elev.pred <- predict(
     "Eff.topo", 
     # "Eff.heat",  
     "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
   )) 
 
@@ -545,6 +577,7 @@ slope_ipoints <- extract(slope, int_pointsw)
 
 slope.pred <- predict(
   m4,
+  # n.samples = 100,
   n.samples = 1000,
   newdata = data.frame(slope_var = seq(min(slope[], na.rm = T), 
                                    quantile(slope[], 0.99, na.rm = T), 
@@ -561,6 +594,7 @@ slope.pred <- predict(
     "Eff.topo", 
     "Eff.heat",  
     "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
   )) 
 
@@ -595,6 +629,7 @@ grasslandPastures_ipoints <- extract(grasslandsPastures, int_pointsw)
 
 grasslandPastures.pred <- predict(
   m4,
+  # n.samples = 100,
   n.samples = 1000,
   newdata = data.frame(grass_var = 
                          seq(min(grasslandsPastures[], na.rm = T),
@@ -612,6 +647,7 @@ grasslandPastures.pred <- predict(
     "Eff.topo", 
     "Eff.heat",  
     "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
   )) 
 
@@ -696,6 +732,7 @@ hfi_ipoints <- extract(human_footprint, int_pointsw)
 hfi.pred <- predict(
   m4,
   n.samples = 1000,
+  # n.samples = 100,
   newdata = data.frame(hfi_var = seq(
     min(human_footprint[], na.rm = T), 
     quantile(human_footprint[], 0.99, na.rm = T), 
@@ -712,6 +749,7 @@ hfi.pred <- predict(
     "Eff.topo", 
     "Eff.heat",  
     "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
     )) 
 
@@ -794,6 +832,7 @@ topo_ipoints <- extract(topo_wetness, int_pointsw)
 topo.pred <- predict(
   m4,
   n.samples = 1000,
+  # n.samples = 100, 
   newdata = data.frame(topo_var = seq(
     quantile(topo_wetness[], 0.01, na.rm = T), 
     quantile(topo_wetness[], 0.99, na.rm = T), 
@@ -810,6 +849,7 @@ topo.pred <- predict(
     # "Eff.topo", 
     "Eff.heat",  
     "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
     )) 
 
@@ -843,6 +883,7 @@ forestDist_ipoints <- extract(forestDist, int_pointsw)
 forestDist.pred <- predict(
   m4,
   n.samples = 1000,
+  # n.samples = 100, 
   newdata = data.frame(dist_var = seq(
     quantile(forestDist[], 0.001, na.rm = T), 
     quantile(forestDist[], 0.99, na.rm = T), 
@@ -859,6 +900,7 @@ forestDist.pred <- predict(
     "Eff.topo",
     # "Eff.heat",
     # "Eff.forestdist", 
+    "Eff.sett", 
     "Eff.smooth_big"
   )) 
 
@@ -885,6 +927,58 @@ eval.forestDist <- ggplot(forestDist.pred) +
     theme_bw()
 
 
+#### Sett distribution ####
+# FIX THIS!
+
+sett_scaled <- extract(setts_scaled, badgers_all)
+sett_ipoints <- extract(setts_scaled, int_pointsw)
+
+sett.pred <- predict(
+  m4,
+  # n.samples = 1000,
+  n.samples = 100,
+  newdata = data.frame(sett_var = seq(
+    quantile(setts_scaled[], 0.001, na.rm = T), 
+    quantile(setts_scaled[], 0.99, na.rm = T), 
+    length.out = 1000)),
+  formula = ~ Eff.sett_eval(sett_var), 
+  exclude = c(
+    "Eff.elevation",
+    "Eff.slope",
+    "Eff.grassPast", 
+    "Eff.swf",
+    # "Eff.shrub",
+    "Eff.hfi",
+    "Eff.pathdist",
+    "Eff.topo",
+    # "Eff.heat",
+    "Eff.forestdist",
+    # "Eff.sett", 
+    "Eff.smooth_big"
+  )) 
+
+eval.sett <- ggplot(sett.pred) +
+  geom_line(aes(sett_var, q0.5)) +
+  geom_ribbon(aes(sett_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  geom_rug(data = sett_scaled, aes(x = z)) + 
+  geom_rug(data = sett_ipoints, aes(x = z), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(setts_scaled[], na.rm = T), 
+                                  max(setts_scaled[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(setts[], na.rm = T),
+                                        max(setts[], na.rm = T),
+                                        length.out = 10), 0),
+                     limits = c(quantile(setts_scaled[], 0.001, na.rm = T), 
+                                quantile(setts_scaled[], 0.99, na.rm = T))) + 
+  labs(x = "Relative abundance of sets", y = "Effect") +
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
+  #                    limits = c(-1.5, 1.5)) + 
+  theme_bw()
+
 ### plot ####
 
 multiplot(
@@ -898,10 +992,11 @@ multiplot(
   eval.topo,
   # eval.heat,
   eval.forestDist, 
+  eval.sett,
   cols = 3 
 )
 
 beepr::beep(sound = 3)
-# ggsave("Outputs/sett_model/setts_covars.png")
+# ggsave("Outputs/badgers_all_model/eval_covars.png")
 
 
