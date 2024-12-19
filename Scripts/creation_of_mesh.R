@@ -59,9 +59,36 @@ p4 <- ggplot() + gg(meshes[[4]]) + coord_equal()
 
 gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2)
 
-# samplers <- readRDS("Data/Inla/samplers.RDS")
+# Samplers for setts with log effort ####
+
+log_samplers <- readRDS("Data/Inla/log_weightedSampler.RDS")
+
+log_samplers %<>% st_transform(crs = projKM)
+
+log_samplers <- log_samplers %>% 
+  group_by(WEIGHT) %>% 
+  summarise() %>% 
+  rename(weight = WEIGHT) 
+
+ggplot(log_samplers) + 
+  geom_sf(aes(fill = weight, col = weight)) + 
+  theme_bw()
+
+
+meshes <- readRDS("Data/Inla/meshes.RDS")
+
+log_int_points4 = fm_int(meshes[[4]], samplers = log_samplers)
+
+saveRDS(log_int_points4, file = "Data/Inla/log_weighted_int_points4.RDS")
+
+ggplot(log_int_points4) + 
+  geom_sf(aes(col = weight), size = 1) + 
+  theme_bw()
+
+# Samplers for setts with log effort ####
+
 samplers <- readRDS("Data/Inla/weightedSampler.RDS")
-# samplers <- readRDS("Data/Inla/samplers.RDS")
+
 samplers %<>% st_transform(crs = projKM)
 
 samplers <- samplers %>% 
@@ -73,69 +100,10 @@ ggplot(samplers) +
   geom_sf(aes(fill = weight, col = weight)) + 
   theme_bw()
 
-
-meshes <- readRDS("Data/Inla/meshes.RDS")
-
 int_points4 = fm_int(meshes[[4]], samplers = samplers)
 
-saveRDS(int_points4, file = "Data/Inla/int_points4_weighted_NDAYS.RDS")
+saveRDS(int_points4, file = "Data/Inla/weighted_int_points4.RDS")
 
 ggplot(int_points4) + 
   geom_sf(aes(col = weight), size = 1) + 
   theme_bw()
-
-
-# weighted sampler for culling programme ####
-
-cul_samplers <- readRDS("Data/Inla/cul_effort.RDS")
-# samplers <- readRDS("Data/Inla/samplers.RDS")
-cul_samplers %<>% st_transform(crs = projKM)
-
-cul_samplers <- cul_samplers %>% 
-  group_by(NDAYS) %>% 
-  summarise() %>% 
-  rename(weight = NDAYS) 
-
-ggplot(cul_samplers) + 
-  geom_sf(aes(fill = weight, col = weight)) + 
-  scale_fill_viridis() + 
-  scale_color_viridis() + 
-  theme_bw()
-
-meshes <- readRDS("Data/Inla/meshes.RDS")
-
-int_points4_cull = fm_int(meshes[[4]], samplers = cul_samplers)
-
-saveRDS(int_points4_cull, file = "Data/Inla/int_points4_culling.RDS")
-
-ggplot(int_points4_cull) + 
-  geom_sf(aes(col = weight), size = 1) + 
-  theme_bw()
-
-# weighted sampler for vaccination programme ####
-
-vac_samplers <- readRDS("Data/Inla/vacc_effort.RDS")
-vac_samplers %<>% st_transform(crs = projKM)
-
-vac_samplers <- vac_samplers %>% 
-  group_by(NDAYS) %>% 
-  summarise() %>% 
-  rename(weight = NDAYS) %>% 
-  drop_na(weight)
-
-ggplot(vac_samplers) + 
-  geom_sf(aes(fill = weight, col = weight)) + 
-  scale_fill_viridis() + 
-  scale_color_viridis() + 
-  theme_bw()
-
-meshes <- readRDS("Data/Inla/meshes.RDS")
-
-int_points4_vac = fm_int(meshes[[4]], samplers = vac_samplers)
-
-saveRDS(int_points4_vac, file = "Data/Inla/int_points4_vacc.RDS")
-
-ggplot(int_points4_vac) + 
-  geom_sf(aes(col = weight), size = 1) + 
-  theme_bw()
-
