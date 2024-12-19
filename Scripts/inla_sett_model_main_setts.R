@@ -4,7 +4,7 @@ source("Scripts/setup.R")
 
 bru_options_set(bru_verbose = TRUE,
 #                 control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
-                control.inla = list(int.strategy="eb"))
+                control.inla = list(int.strategy="auto"))
 
 # Preparation of data ####
 
@@ -25,7 +25,7 @@ env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
 
-env_vars_scaled <- terra::scale(env_vars)
+env_vars_scaled <- terra::scale(env_vars) 
 
 ## load mesh boundaries and samplers ####
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
@@ -37,9 +37,7 @@ ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp") %>%
 mesh <- readRDS("Data/Inla/meshes.RDS")[[2]]
 mesh$crs <- projKM
 
-int_pointsw <- readRDS("Data/Inla/int_points4_weighted.RDS")
-int_points <- readRDS("Data/Inla/int_points4_nonweighted.RDS")
-
+int_pointsw <- readRDS("Data/Inla/log_weighted_int_points4.RDS")
 
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
