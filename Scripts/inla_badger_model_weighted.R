@@ -2,14 +2,14 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-# bru_options_set(bru_verbose = FALSE,
-#                 # control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
-#                 control.inla = list(int.strategy="eb"))
+bru_options_set(bru_verbose = FALSE,
+                # control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
+                control.inla = list(int.strategy="auto"))
 
 # Preparation of data ####
 
 ## load sett data and covariates ####
-badgers_all <- readRDS("Data/culling_badgers_jittered_filtered.RDS") %>% 
+badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>% 
   st_transform(crs = projKM) 
 
 # badger_subset <- badgers_all %>% 
@@ -37,7 +37,7 @@ ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp") %>%
 mesh <- readRDS("Data/Inla/meshes.RDS")[[2]]
 mesh$crs <- projKM
 
-int_pointsw <- readRDS("Data/Inla/int_points4_culling.RDS")
+int_pointsw <- readRDS("Data/Inla/weighted_int_points4.RDS")
 
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
@@ -80,7 +80,7 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
                                      prior.range = c(3, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.5, 0.1))
+                                     prior.sigma = c(1, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
@@ -91,7 +91,7 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
                                       prior.range = c(2, 0.1), # 1 third range mesh
-                                      prior.sigma = c(0.1, 0.1))
+                                      prior.sigma = c(0.5, 0.01))
 
 ### 1d mesh for tree cover density ####
 # mesh1D_tcd <- inla.mesh.1d(seq(min(tcd[], na.rm = T)-1, 
@@ -105,15 +105,15 @@ matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
 #                                     prior.sigma = c(1, 0.5))
 
 ### 1d mesh for small woody features ####
-mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1,
-                               max(swf[], na.rm = T)+1,
-                               length.out = 20),
-                           degree = 2)
-
-diff(range(swf[], na.rm = T))/3
-matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-                                    prior.range = c(2.6, 0.5), # 1 third range mesh
-                                    prior.sigma = c(0.5, 0.5))
+# mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1,
+#                                max(swf[], na.rm = T)+1,
+#                                length.out = 20),
+#                            degree = 2)
+# 
+# diff(range(swf[], na.rm = T))/3
+# matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
+#                                     prior.range = c(2.6, 0.5), # 1 third range mesh
+#                                     prior.sigma = c(0.5, 0.5))
 
 ### 1d mesh for transitional woodland and shrubs ####
 # mesh1D_shrub <- inla.mesh.1d(seq(min(shrub[], na.rm = T)-1, 
@@ -145,8 +145,8 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(2, 0.9), # 1 third range mesh
-                                          prior.sigma = c(1, 0.1))
+                                          prior.range = c(3, 0.9), # 1 third range mesh
+                                          prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for distance to roads ####
 # mesh1D_distRoads <- inla.mesh.1d(seq(min(roadDist[], na.rm = T)-1,
@@ -171,6 +171,7 @@ matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
 #                                           prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for distance to forests ####
+## undo changes to this somehow
 mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
                                        max(forestDist[], na.rm = T)+1,
                                        length.out = 20),
@@ -178,8 +179,8 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(1, 0.1), # 1 third range mesh
-                                            prior.sigma = c(0.1, 0.1))
+                                            prior.range = c(4, 0.1), # 1 third range mesh
+                                            prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for heat loading index ####
 # mesh1D_heat <- inla.mesh.1d(seq(min(heat_loading[], na.rm = T)-1,
@@ -212,8 +213,8 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(2, 0.1), # 1 third range mesh
-                                    prior.sigma = c(0.3, 0.1))
+                                    prior.range = c(3, 0.01), # 1 third range mesh
+                                    prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for sett distribution ####
 mesh1D_sett <- inla.mesh.1d(seq(min(setts_scaled[], na.rm = T)-1,
@@ -928,7 +929,6 @@ eval.forestDist <- ggplot(forestDist.pred) +
 
 
 #### Sett distribution ####
-# FIX THIS!
 
 sett_scaled <- extract(setts_scaled, badgers_all)
 sett_ipoints <- extract(setts_scaled, int_pointsw)
@@ -974,7 +974,7 @@ eval.sett <- ggplot(sett.pred) +
                                         length.out = 10), 0),
                      limits = c(quantile(setts_scaled[], 0.001, na.rm = T), 
                                 quantile(setts_scaled[], 0.99, na.rm = T))) + 
-  labs(x = "Relative abundance of sets", y = "Effect") +
+  labs(x = "Relative abundance of setts", y = "Effect") +
   # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
   #                    limits = c(-1.5, 1.5)) + 
   theme_bw()
