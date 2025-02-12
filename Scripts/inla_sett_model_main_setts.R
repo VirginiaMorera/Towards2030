@@ -102,49 +102,6 @@ matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
                                       prior.range = c(2, 0.1), # 1 third range mesh
                                       prior.sigma = c(0.5, 0.1))
 
-### 1d mesh for tree cover density ####
-# mesh1D_tcd <- inla.mesh.1d(seq(min(tcd[], na.rm = T)-1, 
-#                                max(tcd[], na.rm = T)+1, 
-#                                length.out = 20), 
-#                            degree = 2) 
-# 
-# diff(range(tcd[], na.rm = T))/3
-# matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-#                                     prior.range = c(2.6, 0.5), # 1 third range mesh
-#                                     prior.sigma = c(1, 0.1))
-
-### 1d mesh for small woody features ####
-# mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1, 
-#                                max(swf[], na.rm = T)+1, 
-#                                length.out = 20), 
-#                            degree = 2) 
-# 
-# diff(range(swf[], na.rm = T))/3
-# matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-#                                     prior.range = c(2.5, 0.5), # 1 third range mesh
-#                                     prior.sigma = c(1, 0.5))
-
-### 1d mesh for transitional woodland and shrubs ####
-# mesh1D_shrub <- inla.mesh.1d(seq(min(shrub[], na.rm = T)-1, 
-#                                  max(shrub[], na.rm = T)+1, 
-#                                  length.out = 20), 
-#                              degree = 2) 
-# 
-# diff(range(shrub[], na.rm = T))/3
-# matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
-#                                       prior.range = c(3.8, 0.1), # 1 third range mesh
-#                                       prior.sigma = c(0.1, 0.1))
-
-### 1d mesh for peatbogs and moors ####
-# mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogsandMoors[], na.rm = T)-1, 
-#                                     max(peatbogsandMoors[], na.rm = T)+1, 
-#                                     length.out = 20), 
-#                                 degree = 2) 
-# 
-# diff(range(peatbogsandMoors[], na.rm = T))/3
-# matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
-#                                          prior.range = c(1.2, 0.1), # 1 third range mesh
-#                                          prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for grasslands and pastures ####
 mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
@@ -157,27 +114,6 @@ matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
                                           prior.range = c(1.5, 0.1), # 1 third range mesh
                                           prior.sigma = c(0.2, 0.1))
 
-### 1d mesh for distance to roads ####
-# mesh1D_distRoads <- inla.mesh.1d(seq(min(roadDist[], na.rm = T)-1,
-#                                      max(roadDist[], na.rm = T)+1,
-#                                      length.out = 20),
-#                                  degree = 2)
-# 
-# diff(range(roadDist[], na.rm = T))/3
-# matern1D_distRoads <- inla.spde2.pcmatern(mesh1D_distRoads,
-#                                           prior.range = c(4.6, 0.5), # 1 third range mesh
-#                                           prior.sigma = c(1, 0.5))
-
-### 1d mesh for distance to paths ####
-# mesh1D_distPaths <- inla.mesh.1d(seq(min(pathDist[], na.rm = T)-1,
-#                                      max(pathDist[], na.rm = T)+1,
-#                                      length.out = 20),
-#                                  degree = 2)
-# 
-# diff(range(pathDist[], na.rm = T))/3
-# matern1D_distPaths <- inla.spde2.pcmatern(mesh1D_distPaths,
-#                                           prior.range = c(4, 0.1), # 1 third range mesh
-#                                           prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for distance to forests ####
 mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
@@ -189,17 +125,6 @@ diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
                                             prior.range = c(4, 0.1), # 1 third range mesh
                                             prior.sigma = c(0.5, 0.1))
-
-### 1d mesh for heat loading index ####
-# mesh1D_heat <- inla.mesh.1d(seq(min(heat_loading[], na.rm = T)-1,
-#                                 max(heat_loading[], na.rm = T)+1,
-#                                 length.out = 20),
-#                             degree = 2)
-# 
-# diff(range(heat_loading[], na.rm = T))/3
-# matern1D_heat <- inla.spde2.pcmatern(mesh1D_heat,
-#                                      prior.range = c(8.8, 0.5), # 1 third range mesh
-#                                      prior.sigma = c(1, 0.5))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -229,59 +154,24 @@ matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
 ## Set up spde ####
 
 matern2D_small <- inla.spde2.pcmatern(mesh,
-                                prior.range = c(30, 0.1),  #1/3 y coordinate 90
-                                prior.sigma = c(0.01, 0.1)) #0.001
+                                prior.range = c(20, 0.9),  #1/3 y coordinate 90
+                                prior.sigma = c(0.1, 0.1)) #0.001
 
 matern2D_big <- inla.spde2.pcmatern(mesh,
-                                    prior.range = c(100, 0.1),  #1/3 y coordinate 90
+                                    prior.range = c(100, 0.01),  #1/3 y coordinate 90
                                     prior.sigma = c(0.1, NA)) #0.02 at p 0.1 works
 
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   
-  # Eff.elevation(elevation, model = "linear") +
   Eff.elevation(elevation, model = matern1D_elev) +
-  
-  # Eff.slope(slope, model = "linear") +
   Eff.slope(slope, model = matern1D_slope) +
-  
-  # Eff.tcd(tcd, model = "linear") +
-  # Eff.tcd(tcd, model = matern1D_tcd) +
-  
-  # Eff.swf(swf, model = "linear") +
-  # Eff.swf(swf, model = matern1D_swf) +
-  
-  # Eff.shrub(shrub, model = "linear") +
-  # Eff.shrub(shrub, model = matern1D_shrub) +
-  
-  # Eff.peatbogs(peatbogsandMoors, model = "linear") +
-  # Eff.peatbogs(peatbogsandMoors, model = matern1D_peatbogs) +
-  
-  # Eff.grassPast(grasslandsPastures, model = "linear") +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
-  
-  # Eff.roaddist(roadDist, model = "linear") +
-  # Eff.roaddist(roadDist, model = matern1D_distRoads) +
-  
-  # Eff.pathdist(pathDist, model = "linear") +
-  # Eff.pathdist(pathDist, model = matern1D_distPaths) +
-  
-  # Eff.forestdist(forestDist, model = "linear") +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  
-  # Eff.heat(heat_loading, model = "linear") +
-  # Eff.heat(heat_loading, model = matern1D_heat) +
-  
-  # Eff.topo(topo_wetness, model = "linear") +
   Eff.topo(topo_wetness, model = matern1D_topo) +
-  
-  # Eff.hfi(human_footprint, model = "linear") +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
-  
   Eff.smooth_big(geometry, model = matern2D_big) +
-  # Eff.smooth_small(geometry, model = matern2D_small) +
-  
   NULL
 
 
@@ -310,6 +200,7 @@ lp4 <- predict(
     topoWetness = Eff.topo,
     hfi = Eff.hfi,
     forestDistance = Eff.forestdist,
+    # spfield_small = Eff.smooth_small,
     spfield_big = Eff.smooth_big,
       
     all = Intercept +
@@ -319,6 +210,7 @@ lp4 <- predict(
       Eff.topo +
       Eff.hfi +
       Eff.forestdist +
+      # Eff.smooth_small +
       Eff.smooth_big
     ))
 
@@ -357,7 +249,7 @@ x <- lp4$all[!inside,]
 ggplot() + 
   gg(data = x, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
+  geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
   labs(x = "", y = "", fill = "Median", 
        title = "Main sett distribution (linear scale)") +  
   theme_bw() + 
@@ -368,27 +260,44 @@ ggplot() +
   gg(data = x, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
-  labs(x = "", y = "", fill = "Median", 
-       title = "Main sett distribution (linear scale)") +  
+  labs(x = "", y = "", fill = "95% CI", 
+       title = "Main sett distribution uncertainty") +  
   theme_bw() + 
-  scale_fill_viridis_c(option = "A") +
+  scale_fill_viridis_c() +
   NULL 
   
 #### spatial field ####
 ggplot() + 
   gg(data = spb, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   theme_bw() + 
-  # scale_fill_viridis_c(option = "A") +
   scale_fill_distiller(palette = 'RdBu') + 
-  labs(x = "", y = "", fill = "Median", title = "Spatial random field")   
+  labs(x = "", y = "", fill = "Median", title = "Spatial random field") + 
   
+ggplot() + 
+  gg(data = spb, aes(fill = q0.975 - q0.025), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  theme_bw() + 
+  scale_fill_viridis_c() +
+  labs(x = "", y = "", fill = "95% CI", title = "Uncertainty of the spatial random field") 
+
+#### response scale prediction ####
+
 inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
 y <- rp4$all[!inside,]
 
 ggplot() + 
-  gg(data = y, aes(fill = mean), geom = "tile") +
+  gg(data = y, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "white") + 
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
+  labs(x = "", y = "", fill = "Median", 
+       title = "Main sett distribution (response scale)") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+  NULL + 
+
+ggplot() + 
+  gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "Median", 
@@ -407,29 +316,9 @@ slope_df <- lp4$slope[!inside,]
 slope_df <- slope_df %>% 
   mutate(Variable = "Slope")
 
-# tcd_df <- lp4$tcd[!inside,] 
-# tcd_df <- tcd_df %>% 
-#   mutate(Variable = "Tcd")
-
-# swf_df <- lp4$swf[!inside,] 
-# swf_df <- swf_df %>% 
-#   mutate(Variable = "swf")
-
 grass_df <- lp4$grassland[!inside,] 
 grass_df <- grass_df %>% 
   mutate(Variable = "Grasslands and pastures")
-
-# shrub_df <- lp4$shrub[!inside,]
-# shrub_df <- shrub_df %>%
-#   mutate(Variable = "Transitional woodland and shrub")
-
-# peat_df <- lp4$peat[!inside,] 
-# peat_df <- peat_df %>% 
-#   mutate(Variable = "Peatbogs and moors")
-
-# pathdist_df <- lp4$pathDistance[!inside,]
-# pathdist_df <- pathdist_df %>%
-#   mutate(Variable = "Distance to paths")
 
 topo_df <- lp4$topoWetness[!inside,]
 topo_df <- topo_df %>%
@@ -458,20 +347,6 @@ ggplot() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
   labs(title = "Slope effect", x = "", y = "", fill = "Median") +
   
-# ggplot() + 
-#   gg(data = tcd_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_outline_sf, fill = NA) +
-#   theme_bw() + 
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
-#   labs(title = "Tree cover density effect", x = "", y = "", fill = "Mean") +
-  
-# ggplot() + 
-#   gg(data = swf_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_counties, fill = NA) +
-#   theme_bw() + 
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
-#   labs(title = "Small woody features effect", x = "", y = "", fill = "Median") +
-  
 ggplot() + 
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
@@ -479,27 +354,6 @@ ggplot() +
   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
   labs(title = "Pasture and grasslands effect", x = "", y = "", fill = "Median") +
 
-# ggplot() + 
-#   gg(data = shrub_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_counties, fill = NA) +
-#   theme_bw() + 
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
-#   labs(title = "Transitional woodland and shrub", x = "", y = "", fill = "Median") +
-  
-# ggplot() + 
-#   gg(data = peat_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_outline_sf, fill = NA) +
-#   theme_bw() + 
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
-#   labs(title = "Peatbogs and moors", x = "", y = "", fill = "Mean") +
-  
-# ggplot() + 
-#   gg(data = pathdist_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_outline_sf, fill = NA) +
-#   theme_bw() + 
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) + 
-#   labs(title = "Distance to paths effect", x = "", y = "", fill = "Mean") +
-  
 ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_outline_sf, fill = NA) +
@@ -773,17 +627,3 @@ multiplot(
 
 beepr::beep(sound = 3)
 # ggsave("Outputs/sett_model/setts_covars.png")
-pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_2.pdf", 
-    width = 8, height = 8)
-multiplot(
-  eval.elev,
-  eval.grasslandsPastures,
-  eval.hfi,
-  
-  eval.slope,
-  eval.forestdist,
-  eval.topo,
-  cols = 2 
-)
-dev.off()
-
