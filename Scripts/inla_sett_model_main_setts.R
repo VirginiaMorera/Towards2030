@@ -50,10 +50,6 @@ int_pointsw <- readRDS("Data/Inla/log_weighted_int_points4.RDS")
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
 ## create different integration points dfs ####
-df <- fm_pixels(mesh, mask = inner_boundary,
-                 dims = c(72, 81),
-                 format = "sf")
-
 df2 <- fm_pixels(mesh,
                 dims = c(72*10, 81*10),
                 mask = inner_boundary,
