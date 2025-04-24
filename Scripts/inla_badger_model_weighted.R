@@ -16,15 +16,19 @@ badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>%
 #   filter(YEAR > 2018)
 
 env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
-setts <- terra::rast("Outputs/badger_linear_mean.grd")
+setts_raster <- terra::rast("Outputs/sett_pred_response.grd")
 
-crs(setts) <- crs(env_vars)
-
+env_vars$forest_distances <- env_vars$forest_distances/1000
+env_vars$setts <- setts_raster
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
 
 env_vars_scaled <- terra::scale(env_vars)
-setts_scaled <- scale(setts)
+
+scaling_parameters <- data.frame(
+  names = names(env_vars), 
+  means = global(env_vars, mean, na.rm=TRUE)[,1],
+  sds = global(env_vars, sd, na.rm=TRUE)[,1])
 
 
 ## load mesh boundaries and samplers ####
@@ -42,10 +46,6 @@ int_pointsw <- readRDS("Data/Inla/weighted_int_points4.RDS")
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
 ## create different integration points dfs ####
-df <- fm_pixels(mesh, mask = inner_boundary,
-                dims = c(72, 81),
-                format = "sf")
-
 df2 <- fm_pixels(mesh,
                  dims = c(72*10, 81*10),
                  mask = inner_boundary,
@@ -68,6 +68,7 @@ forestDist <- env_vars_scaled$forest_distances
 heat_loading <- env_vars_scaled$heat_loading_index
 topo_wetness <- env_vars_scaled$topographic_wetness_index
 human_footprint <- env_vars_scaled$human_footprint_index
+setts <- env_vars_scaled$setts
 
 ## Prepare 1D meshes for covars ####
 
@@ -79,8 +80,8 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(3, 0.1), # 1 third range mesh
-                                     prior.sigma = c(1, 0.1))
+                                     prior.range = c(2, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
@@ -90,88 +91,23 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(2, 0.1), # 1 third range mesh
-                                      prior.sigma = c(0.5, 0.01))
+                                      prior.range = c(3, 0.01), # 1 third range mesh
+                                      prior.sigma = c(0.1, 0.01))
 
-### 1d mesh for tree cover density ####
-# mesh1D_tcd <- inla.mesh.1d(seq(min(tcd[], na.rm = T)-1, 
-#                                max(tcd[], na.rm = T)+1, 
-#                                length.out = 20), 
-#                            degree = 2) 
-# 
-# diff(range(tcd[], na.rm = T))/3
-# matern1D_tcd <- inla.spde2.pcmatern(mesh1D_tcd,
-#                                     prior.range = c(2.6, 0.5), # 1 third range mesh
-#                                     prior.sigma = c(1, 0.5))
-
-### 1d mesh for small woody features ####
-# mesh1D_swf <- inla.mesh.1d(seq(min(swf[], na.rm = T)-1,
-#                                max(swf[], na.rm = T)+1,
-#                                length.out = 20),
-#                            degree = 2)
-# 
-# diff(range(swf[], na.rm = T))/3
-# matern1D_swf <- inla.spde2.pcmatern(mesh1D_swf,
-#                                     prior.range = c(2.6, 0.5), # 1 third range mesh
-#                                     prior.sigma = c(0.5, 0.5))
-
-### 1d mesh for transitional woodland and shrubs ####
-# mesh1D_shrub <- inla.mesh.1d(seq(min(shrub[], na.rm = T)-1, 
-#                                  max(shrub[], na.rm = T)+1, 
-#                                  length.out = 20), 
-#                              degree = 2) 
-# 
-# diff(range(shrub[], na.rm = T))/3
-# matern1D_shrub <- inla.spde2.pcmatern(mesh1D_shrub,
-#                                     prior.range = c(3.8, 0.5), # 1 third range mesh
-#                                     prior.sigma = c(1, 0.5))
-
-### 1d mesh for peatbogs and moors ####
-# mesh1D_peatbogs <- inla.mesh.1d(seq(min(peatbogsandMoors[], na.rm = T)-1, 
-#                                     max(peatbogsandMoors[], na.rm = T)+1, 
-#                                     length.out = 20), 
-#                                 degree = 2) 
-# 
-# diff(range(peatbogsandMoors[], na.rm = T))/3
-# matern1D_peatbogs <- inla.spde2.pcmatern(mesh1D_peatbogs,
-#                                          prior.range = c(1.2, 0.5), # 1 third range mesh
-#                                          prior.sigma = c(1, 0.5))
 
 ### 1d mesh for grasslands and pastures ####
 mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
                                      max(grasslandsPastures[], na.rm = T)+1,
-                                     length.out = 20),
+                                     length.out = 10),
                                  degree = 2)
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(3, 0.9), # 1 third range mesh
-                                          prior.sigma = c(0.5, 0.1))
+                                          prior.range = c(0.3, 0.1), # 1 third range mesh
+                                          prior.sigma = c(1, 0.1))
 
-### 1d mesh for distance to roads ####
-# mesh1D_distRoads <- inla.mesh.1d(seq(min(roadDist[], na.rm = T)-1,
-#                                      max(roadDist[], na.rm = T)+1,
-#                                      length.out = 20),
-#                                  degree = 2)
-# 
-# diff(range(roadDist[], na.rm = T))/3
-# matern1D_distRoads <- inla.spde2.pcmatern(mesh1D_distRoads,
-#                                           prior.range = c(4.6, 0.5), # 1 third range mesh
-#                                           prior.sigma = c(1, 0.5))
-
-### 1d mesh for distance to paths ####
-# mesh1D_distPaths <- inla.mesh.1d(seq(min(pathDist[], na.rm = T)-1,
-#                                      max(pathDist[], na.rm = T)+1,
-#                                      length.out = 20),
-#                                  degree = 2)
-# 
-# diff(range(pathDist[], na.rm = T))/3
-# matern1D_distPaths <- inla.spde2.pcmatern(mesh1D_distPaths,
-#                                           prior.range = c(1, 0.1), # 1 third range mesh
-#                                           prior.sigma = c(0.01, 0.01))
 
 ### 1d mesh for distance to forests ####
-## undo changes to this somehow
 mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
                                        max(forestDist[], na.rm = T)+1,
                                        length.out = 20),
@@ -179,19 +115,8 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(4, 0.1), # 1 third range mesh
-                                            prior.sigma = c(0.5, 0.1))
-
-### 1d mesh for heat loading index ####
-# mesh1D_heat <- inla.mesh.1d(seq(min(heat_loading[], na.rm = T)-1,
-#                                 max(heat_loading[], na.rm = T)+1,
-#                                 length.out = 20),
-#                             degree = 2)
-# 
-# diff(range(heat_loading[], na.rm = T))/3
-# matern1D_heat <- inla.spde2.pcmatern(mesh1D_heat,
-#                                      prior.range = c(8.8, 0.5), # 1 third range mesh
-#                                      prior.sigma = c(1, 0.5))
+                                            prior.range = c(4, 0.9), # 1 third range mesh
+                                            prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -201,8 +126,8 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(2, 0.01), # 1 third range mesh
-                                     prior.sigma = c(0.5, 0.01))
+                                     prior.range = c(2, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.5, 0.1))
 
 
 ### 1d mesh for human footprint index ####
@@ -213,19 +138,19 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(3, 0.01), # 1 third range mesh
+                                    prior.range = c(3, 0.1), # 1 third range mesh
                                     prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for sett distribution ####
-mesh1D_sett <- inla.mesh.1d(seq(min(setts_scaled[], na.rm = T)-1,
-                               max(setts_scaled[], na.rm = T)+1,
+mesh1D_sett <- inla.mesh.1d(seq(min(setts[], na.rm = T)-1,
+                               max(setts[], na.rm = T)+1,
                                length.out = 20),
                            degree = 2)
 
-diff(range(setts_scaled[], na.rm = T))/3
+diff(range(setts[], na.rm = T))/3
 matern1D_sett <- inla.spde2.pcmatern(mesh1D_sett,
-                                    prior.range = c(4, 0.1), # 1 third range mesh
-                                    prior.sigma = c(2, 0.1))
+                                    prior.range = c(4, 0.01), # 1 third range mesh
+                                    prior.sigma = c(0.1, 0.1))
 
 
 # M4 non-linear covar effects + spde ####
@@ -238,56 +163,20 @@ matern2D_small <- inla.spde2.pcmatern(mesh,
 
 matern2D_big <- inla.spde2.pcmatern(mesh,
                                     prior.range = c(90, 0.1),  #1/3 y coordinate 90
-                                    prior.sigma = c(2, 0.1)) #0.01 at p 0.1 works
+                                    prior.sigma = c(0.1, NA)) #
 
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   
-  # Eff.elevation(elevation, model = "linear") +
   Eff.elevation(elevation, model = matern1D_elev) +
-
-  # Eff.slope(slope, model = "linear") +
   Eff.slope(slope, model = matern1D_slope) +
-
-  # Eff.tcd(tcd, model = "linear") +
-  # Eff.tcd(tcd, model = matern1D_tcd) +
-
-  # Eff.swf(swf, model = "linear") +
-  # Eff.swf(swf, model = matern1D_swf) +
-
-  # Eff.shrub(shrub, model = "linear") +
-  # Eff.shrub(shrub, model = matern1D_shrub) +
-
-  # Eff.peatbogs(peatbogsandMoors, model = "linear") +
-  # Eff.peatbogs(peatbogsandMoors, model = matern1D_peatbogs) +
-
-  # Eff.grassPast(grasslandsPastures, model = "linear") +
-  Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
-
-  # Eff.roaddist(roadDist, model = "linear") +
-  # Eff.roaddist(roadDist, model = matern1D_distRoads) +
-
-  # Eff.pathdist(pathDist, model = "linear") +
-  # Eff.pathdist(pathDist, model = matern1D_distPaths) +
-
-  # Eff.forestdist(forestDist, model = "linear") +
+  Eff.grassPast(grasslandsPastures, model = "linear") +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-
-  # Eff.heat(heat_loading, model = "linear") +
-  # Eff.heat(heat_loading, model = matern1D_heat) +
-
-  # Eff.topo(topo_wetness, model = "linear") +
   Eff.topo(topo_wetness, model = matern1D_topo) +
-
-  # Eff.hfi(human_footprint, model = "linear") +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
-  
   Eff.sett(setts, model = matern1D_sett) +
-  
   Eff.smooth_big(geometry, model = matern2D_big) +
-  # Eff.smooth_small(geometry, model = matern2D_small) +
-  
   NULL
 
 ## Run model ####
@@ -308,16 +197,12 @@ beepr::beep(sound = 4)
 lp4 <- predict(
   object = m4, 
   newdata = df2, 
-  samples = 1000,
+  samples = 100,
   formula = ~ list(
     elevation = Eff.elevation,
     slope = Eff.slope,
     grassland = Eff.grassPast,
-    # swf = Eff.swf,
-    # shrub = Eff.shrub,
     hfi = Eff.hfi,
-    # pathDistance = Eff.pathdist,
-    # heat = Eff.heat,
     topoWetness = Eff.topo,
     forestDistance = Eff.forestdist,
     setts = Eff.sett,
@@ -327,12 +212,8 @@ lp4 <- predict(
       Eff.elevation +
       Eff.slope +
       Eff.grassPast +
-      # Eff.swf +
-      # Eff.shrub +
       Eff.hfi +
-      # Eff.pathdist +
       Eff.topo +
-      # Eff.heat +
       Eff.forestdist +
       Eff.sett + 
       Eff.smooth_big
@@ -351,19 +232,16 @@ rp4 <- predict(
                 Eff.elevation +
                 Eff.slope +
                 Eff.grassPast +
-                # Eff.swf +
-                # Eff.shrub +
                 Eff.hfi +
-                # Eff.pathdist +
                 Eff.topo +
-                # Eff.heat +
-                Eff.forestdist +
                 Eff.sett + 
+                Eff.forestdist +
                 Eff.smooth_big
               )))
 
 # saveRDS(rp4, file = "Outputs/badgers_all_model/response_predictor.RDS")
 # rp4 <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
+
 ### plot #### 
 inside = sapply(st_intersects(lp4$spfield_big, ireland_outline_sf), function(x){length(x)==0})
 spb <- lp4$spfield_big[!inside,]
@@ -371,25 +249,43 @@ spb <- lp4$spfield_big[!inside,]
 inside = sapply(st_intersects(lp4$all, ireland_outline_sf), function(x){length(x)==0})
 x <- lp4$all[!inside,]
 
-ggplot() + 
-  gg(data = spb, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badger_subset, alpha = 0.5, size = 1) +
-  theme_bw() + 
-  # scale_fill_viridis_c(option = "A") +
-  scale_fill_distiller(palette = 'RdBu') + 
-  ggtitle("Spatial random field") + 
-  NULL + 
-
+#### prediction ####
 ggplot() + 
   gg(data = x, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = badger_subset, alpha = 0.5, size = 1) +
-  ggtitle("Badger distribution (linear scale)") +
-  labs(x = "", y = "", fill = "Mean") +  
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
+  labs(x = "", y = "", fill = "Median", 
+       title = "Badger distribution (linear scale)") +  
   theme_bw() + 
   scale_fill_viridis_c(option = "A") +
-  NULL
+  NULL +
+  
+ggplot() + 
+  gg(data = x, aes(fill = q0.975 - q0.025), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) + 
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
+  labs(x = "", y = "", fill = "95% CI", 
+       title = "Badger distribution uncertainty") +  
+  theme_bw() + 
+  scale_fill_viridis_c() +
+  NULL 
+
+#### spatial field ####
+ggplot() + 
+  gg(data = spb, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  theme_bw() + 
+  scale_fill_distiller(palette = 'RdBu') + 
+  labs(x = "", y = "", fill = "Median", title = "Spatial random field") + 
+  
+ggplot() + 
+  gg(data = spb, aes(fill = q0.975 - q0.025), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  theme_bw() + 
+  scale_fill_viridis_c() +
+  labs(x = "", y = "", fill = "95% CI", title = "Uncertainty of the spatial random field") 
+
+#### response scale prediction ####
 
 inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
 y <- rp4$all[!inside,]
@@ -398,11 +294,22 @@ ggplot() +
   gg(data = y, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
-  ggtitle("Main sett distribution response") +
-  labs(x = "", y = "", fill = "Mean") +  
+  labs(x = "", y = "", fill = "Median", 
+       title = "Badger distribution (response scale)") +  
+  theme_bw() + 
+  scale_fill_viridis_c(option = "D") +
+  NULL + 
+  
+  ggplot() + 
+  gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "white") + 
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
+  labs(x = "", y = "", fill = "Median", 
+       title = "Badger distribution uncertainty") +  
   theme_bw() + 
   scale_fill_viridis_c(option = "D") +
   NULL
+
 
 inside = sapply(st_intersects(lp4$elevation, ireland_outline_sf), function(x){length(x)==0})
 elev_df <- lp4$elevation[!inside,] 
@@ -417,20 +324,12 @@ grass_df <- lp4$grassland[!inside,]
 grass_df <- grass_df %>% 
   mutate(Variable = "Grasslands and pastures")
 
-# swf_df <- lp4$swf[!inside,] 
-# swf_df <- swf_df %>% 
-#   mutate(Variable = "Small woodie features")
-
 hfi_df <- lp4$hfi[!inside,]
 hfi_df <- hfi_df %>% 
   mutate(Variable = "Human footprint index")
 
-# pathdist_df <- lp4$pathDistance[!inside,]
-# pathdist_df <- pathdist_df %>%
-#   mutate(Variable = "Distance to paths")
-
 fordist_df <- lp4$forestDistance[!inside,]
-fordist_df <- fordist_df %>% 
+fordist_df <- fordist_df %>%
   mutate(Variable = "Distance to forest edge")
 
 topo_df <- lp4$topoWetness[!inside,]
@@ -441,73 +340,67 @@ setts_df <- lp4$setts[!inside,]
 setts_df <- setts_df %>% 
   mutate(Variable = "Sett relative density")
 
+limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
+                   fordist_df$q0.5, topo_df$q0.5, setts_df$q0.5))) * c(-1, 1)
+
 ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Elevation", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Slope", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Grasslands and pastures", x = "", y = "", fill = "Mean") +
-
-# ggplot() +
-#   gg(data = swf_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_outline_sf, fill = NA) +
-#   theme_bw() +
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) +
-#   labs(title = "Small woodie features", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Human footprint index", x = "", y = "", fill = "Mean") +
 
-# ggplot() +
-#   gg(data = pathdist_df, aes(fill = q0.5), geom = "tile") +
-#   geom_sf(data = ireland_outline_sf, fill = NA) +
-#   theme_bw() +
-#   scale_fill_distiller(palette = 'RdBu', direction = 1) +
-#   labs(title = "Distance to paths", x = "", y = "", fill = "Mean") +
-  
 ggplot() +
   gg(data = fordist_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Distance to the forest edge", x = "", y = "", fill = "Mean") +
   
 ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Topographic wetness index", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = setts_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Sett relative density", x = "", y = "", fill = "Mean") +
   
 plot_layout(ncol = 3)
 
-  
-  
 ## Spde and cor covariance plots ####
 
 range.plot <- plot(spde.posterior(m4, "Eff.smooth_big", what = "range"))
@@ -528,26 +421,11 @@ elevation_ipoints <- extract(elevation, int_pointsw)
 
 elev.pred <- predict(
   m4,
-  # n.samples = 100,
-  n.samples = 1000,
+  n.samples = 100,
   newdata = data.frame(elevation_var = seq(min(elevation[], na.rm = T), 
                                        quantile(elevation[], probs = 0.99, na.rm = T), 
-                                       length.out = 1000)),
-  formula = ~ Eff.elevation_eval(elevation_var), 
-  exclude = c(
-    # "Eff.elevation",
-    "Eff.slope", 
-    "Eff.grassPast", 
-    "Eff.swf",
-    # "Eff.shrub", 
-    "Eff.hfi", 
-    "Eff.pathdist", 
-    "Eff.topo", 
-    # "Eff.heat",  
-    "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-  )) 
+                                       length.out = 100)),
+  formula = ~ Eff.elevation_eval(elevation_var)) 
 
 eval.elev <- ggplot(elev.pred) +
     geom_line(aes(elevation_var, q0.5)) +
@@ -578,26 +456,11 @@ slope_ipoints <- extract(slope, int_pointsw)
 
 slope.pred <- predict(
   m4,
-  # n.samples = 100,
-  n.samples = 1000,
+  n.samples = 100,
   newdata = data.frame(slope_var = seq(min(slope[], na.rm = T), 
                                    quantile(slope[], 0.99, na.rm = T), 
-                                   length.out = 1000)),
-  formula = ~ Eff.slope_eval(slope_var), 
-  exclude = c(
-    "Eff.elevation",
-    # "Eff.slope", 
-    "Eff.grassPast", 
-    "Eff.swf",
-    "Eff.shrub", 
-    "Eff.hfi", 
-    "Eff.pathdist", 
-    "Eff.topo", 
-    "Eff.heat",  
-    "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-  )) 
+                                   length.out = 100)),
+  formula = ~ Eff.slope_eval(slope_var)) 
 
 eval.slope <- ggplot(slope.pred) +
     geom_line(aes(slope_var, q0.5)) +
@@ -630,27 +493,13 @@ grasslandPastures_ipoints <- extract(grasslandsPastures, int_pointsw)
 
 grasslandPastures.pred <- predict(
   m4,
-  # n.samples = 100,
-  n.samples = 1000,
+  n.samples = 100,
   newdata = data.frame(grass_var = 
                          seq(min(grasslandsPastures[], na.rm = T),
                              quantile(grasslandsPastures[], 0.99, na.rm = T),
-                             length.out = 1000)),
-  formula = ~ Eff.grassPast_eval(grass_var),
-  exclude = c(
-    "Eff.elevation",
-    "Eff.slope", 
-    # "Eff.grassPast", 
-    "Eff.swf",
-    "Eff.shrub", 
-    "Eff.hfi", 
-    "Eff.pathdist", 
-    "Eff.topo", 
-    "Eff.heat",  
-    "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-  )) 
+                             length.out = 100)),   
+  formula = ~ Eff.grassPast_eval(grass_var)) 
+ 
 
 eval.grasslandsPastures <- ggplot(grasslandPastures.pred) +
     geom_line(aes(grass_var, q0.5)) +
@@ -674,57 +523,6 @@ eval.grasslandsPastures <- ggplot(grasslandPastures.pred) +
     #                    limits = c(-1.5, 1.5)) + 
     theme_bw()
 
-
-#### Small woodie features ####
-
-# swf_scaled <- extract(swf, badgers_all)
-# swf_ipoints <- extract(swf, int_pointsw)
-# 
-# swf.pred <- predict(
-#   m4,
-#   n.samples = 100,
-#   newdata = data.frame(swf_var = 
-#                          seq(min(swf[], na.rm = T),
-#                              quantile(swf[], 0.99, na.rm = T),
-#                              length.out = 1000)),
-#   formula = ~ Eff.swf_eval(swf_var),
-#   exclude = c(
-#     "Eff.elevation",
-#     "Eff.slope", 
-#     "Eff.grassPast",
-#     # "Eff.swf",
-#     "Eff.shrub", 
-#     "Eff.hfi", 
-#     "Eff.pathdist", 
-#     "Eff.topo", 
-#     "Eff.heat",  
-#     "Eff.forestdist", 
-#     "Eff.smooth_big"
-#   )) 
-# 
-# eval.swf <- ggplot(swf.pred) +
-#     geom_line(aes(swf_var, q0.5)) +
-#     geom_ribbon(aes(swf_var,
-#                     ymin = q0.025,
-#                     ymax = q0.975),
-#                 alpha = 0.2) + 
-#     geom_rug(data = swf_scaled, aes(x = small_woody_features)) + 
-#     geom_rug(data = swf_scaled, aes(x = small_woody_features), inherit.aes = F, 
-#              col = "darkgray", sides = "t") + 
-#     scale_x_continuous(breaks = seq(min(swf[], na.rm = T), 
-#                                     max(swf[], na.rm = T), 
-#                                     length.out = 10), 
-#                        labels = round((seq(min(env_vars$small_woody_features[], na.rm = T), 
-#                                                max(env_vars$small_woody_features[], na.rm = T), 
-#                                                length.out = 10)), 0), 
-#                        limits = c(min(swf[], na.rm = T),
-#                                   quantile(swf[], 0.99, na.rm = T))) + 
-#     labs(x = "Percentage of small woodie features", y = "Effect") + 
-#     # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-#     #                    limits = c(-1.5, 1.5)) + 
-#     theme_bw()
-
-
 #### Human footprint index ####
 
 hfi_scaled <- extract(human_footprint, badgers_all)
@@ -732,27 +530,12 @@ hfi_ipoints <- extract(human_footprint, int_pointsw)
 
 hfi.pred <- predict(
   m4,
-  n.samples = 1000,
-  # n.samples = 100,
+  n.samples = 100,
   newdata = data.frame(hfi_var = seq(
     min(human_footprint[], na.rm = T), 
     quantile(human_footprint[], 0.99, na.rm = T), 
-    length.out = 1000)),
-  formula = ~ Eff.hfi_eval(hfi_var), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.slope",
-    "Eff.grassPast", 
-    "Eff.swf",
-    "Eff.shrub",
-    # "Eff.hfi", 
-    "Eff.pathdist", 
-    "Eff.topo", 
-    "Eff.heat",  
-    "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-    )) 
+    length.out = 100)),
+  formula = ~ Eff.hfi_eval(hfi_var)) 
 
 eval.hfi <- ggplot(hfi.pred) +
     geom_line(aes(hfi_var, q0.5)) +
@@ -777,54 +560,6 @@ eval.hfi <- ggplot(hfi.pred) +
     theme_bw()
 
 
-#### distance to paths ####
-
-# pathdist_scaled <- extract(pathDist, badgers_all)
-# pathdist_ipoints <- extract(pathDist, int_pointsw)
-# 
-# pathDist.pred <- predict(
-#   m4,
-#   n.samples = 100,
-#   newdata = data.frame(path_var = seq(min(pathDist[], na.rm = T),
-#                                        quantile(pathDist[], 0.99, na.rm = T),
-#                                        length.out = 1000)),
-#   formula = ~ Eff.pathdist_eval(path_var),
-#   exclude = c(
-#     "Eff.elevation",
-#     "Eff.slope",
-#     "Eff.grassPast",
-#     "Eff.swf",
-#     "Eff.shrub",
-#     "Eff.hfi",
-#     # "Eff.pathdist",
-#     "Eff.topo",
-#     "Eff.heat",
-#     "Eff.forestdist",
-#     "Eff.smooth_big"
-#   ))
-# 
-# eval.pathDist <- ggplot(pathDist.pred) +
-#     geom_line(aes(path_var, mean)) +
-#     geom_ribbon(aes(path_var,
-#                     ymin = mean - 1 * sd,
-#                     ymax = mean + 1 * sd),
-#                 alpha = 0.2) +
-#     geom_rug(data = pathdist_scaled, aes(x = dist_to_paths)) +
-#     geom_rug(data = pathdist_ipoints, aes(x = dist_to_paths), inherit.aes = F,
-#              col = "darkgray", sides = "t") +
-#     scale_x_continuous(breaks = seq(min(env_vars_scaled$dist_to_paths[], na.rm = T),
-#                                     max(env_vars_scaled$dist_to_paths[], na.rm = T),
-#                                     length.out = 10),
-#                        labels = round(seq(min(env_vars$dist_to_paths[], na.rm = T),
-#                                           max(env_vars$dist_to_paths[], na.rm = T),
-#                                           length.out = 10), 0),
-#                        limits = c(min(env_vars_scaled$dist_to_paths[], na.rm = T),
-#                                   quantile(env_vars_scaled$dist_to_paths[], 0.99, na.rm = T))) +
-#     labs(x = "Distance to paths", y = "Effect") +
-#     # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
-#     #                    limits = c(-1.5, 1.5)) +
-#     theme_bw()
-
 #### Topographic wetness index ####
 
 topo_scaled <- extract(topo_wetness, badgers_all)
@@ -832,27 +567,12 @@ topo_ipoints <- extract(topo_wetness, int_pointsw)
 
 topo.pred <- predict(
   m4,
-  n.samples = 1000,
-  # n.samples = 100, 
+  n.samples = 100, 
   newdata = data.frame(topo_var = seq(
     quantile(topo_wetness[], 0.01, na.rm = T), 
     quantile(topo_wetness[], 0.99, na.rm = T), 
-    length.out = 1000)),
-  formula = ~ Eff.topo_eval(topo_var), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.slope",
-    "Eff.grassPast", 
-    "Eff.swf",
-    "Eff.shrub",
-    "Eff.hfi",
-    "Eff.pathdist",
-    # "Eff.topo", 
-    "Eff.heat",  
-    "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-    )) 
+    length.out = 100)),
+  formula = ~ Eff.topo_eval(topo_var)) 
 
 eval.topo <- ggplot(topo.pred) +
     geom_line(aes(topo_var, q0.5)) +
@@ -883,27 +603,12 @@ forestDist_ipoints <- extract(forestDist, int_pointsw)
 
 forestDist.pred <- predict(
   m4,
-  n.samples = 1000,
-  # n.samples = 100, 
+  n.samples = 100, 
   newdata = data.frame(dist_var = seq(
     quantile(forestDist[], 0.001, na.rm = T), 
     quantile(forestDist[], 0.99, na.rm = T), 
-    length.out = 1000)),
-  formula = ~ Eff.forestdist_eval(dist_var), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.slope",
-    "Eff.grassPast", 
-    "Eff.swf",
-    # "Eff.shrub",
-    "Eff.hfi",
-    "Eff.pathdist",
-    "Eff.topo",
-    # "Eff.heat",
-    # "Eff.forestdist", 
-    "Eff.sett", 
-    "Eff.smooth_big"
-  )) 
+    length.out = 100)),
+  formula = ~ Eff.forestdist_eval(dist_var)) 
 
 eval.forestDist <- ggplot(forestDist.pred) +
     geom_line(aes(dist_var, q0.5)) +
@@ -930,32 +635,17 @@ eval.forestDist <- ggplot(forestDist.pred) +
 
 #### Sett distribution ####
 
-sett_scaled <- extract(setts_scaled, badgers_all)
-sett_ipoints <- extract(setts_scaled, int_pointsw)
+sett_scaled <- extract(setts, badgers_all)
+sett_ipoints <- extract(setts, int_pointsw)
 
 sett.pred <- predict(
   m4,
-  # n.samples = 1000,
   n.samples = 100,
   newdata = data.frame(sett_var = seq(
-    quantile(setts_scaled[], 0.001, na.rm = T), 
-    quantile(setts_scaled[], 0.99, na.rm = T), 
-    length.out = 1000)),
-  formula = ~ Eff.sett_eval(sett_var), 
-  exclude = c(
-    "Eff.elevation",
-    "Eff.slope",
-    "Eff.grassPast", 
-    "Eff.swf",
-    # "Eff.shrub",
-    "Eff.hfi",
-    "Eff.pathdist",
-    "Eff.topo",
-    # "Eff.heat",
-    "Eff.forestdist",
-    # "Eff.sett", 
-    "Eff.smooth_big"
-  )) 
+    quantile(setts[], 0.001, na.rm = T), 
+    quantile(setts[], 0.99, na.rm = T), 
+    length.out = 100)),
+  formula = ~ Eff.sett_eval(sett_var)) 
 
 eval.sett <- ggplot(sett.pred) +
   geom_line(aes(sett_var, q0.5)) +
@@ -963,20 +653,19 @@ eval.sett <- ggplot(sett.pred) +
                   ymin = q0.025,
                   ymax = q0.975),
               alpha = 0.2) +
-  geom_rug(data = sett_scaled, aes(x = z)) + 
-  geom_rug(data = sett_ipoints, aes(x = z), inherit.aes = F, 
+  geom_rug(data = sett_scaled, aes(x = setts)) + 
+  geom_rug(data = sett_ipoints, aes(x = setts), inherit.aes = F, 
            col = "darkgray", sides = "t") + 
-  scale_x_continuous(breaks = seq(min(setts_scaled[], na.rm = T), 
-                                  max(setts_scaled[], na.rm = T), 
+  scale_x_continuous(breaks = seq(min(setts[], na.rm = T), 
+                                  max(setts[], na.rm = T), 
                                   length.out = 10), 
-                     labels = round(seq(min(setts[], na.rm = T),
-                                        max(setts[], na.rm = T),
-                                        length.out = 10), 0),
-                     limits = c(quantile(setts_scaled[], 0.001, na.rm = T), 
-                                quantile(setts_scaled[], 0.99, na.rm = T))) + 
+                     labels = round(seq(min(setts_raster[], na.rm = T),
+                                        max(setts_raster[], na.rm = T),
+                                        length.out = 10), 3),
+                     limits = c(quantile(setts[], 0.001, na.rm = T), 
+                                quantile(setts[], 0.99, na.rm = T))) + 
+  # scale_y_continuous(labels = c(-0.75, -0.5, -0.25, 0, 0.25, 0.5)) +
   labs(x = "Relative abundance of setts", y = "Effect") +
-  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-  #                    limits = c(-1.5, 1.5)) + 
   theme_bw()
 
 ### plot ####
@@ -985,15 +674,11 @@ multiplot(
   eval.elev,
   eval.slope,
   eval.grasslandsPastures,
-  # eval.swf,
-  # eval.shrub,
   eval.hfi,
-  # eval.pathDist,
   eval.topo,
-  # eval.heat,
-  eval.forestDist, 
+  eval.forestDist,
   eval.sett,
-  cols = 3 
+  cols = 2 
 )
 
 beepr::beep(sound = 3)
