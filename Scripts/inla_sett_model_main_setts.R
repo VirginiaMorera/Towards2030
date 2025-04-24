@@ -2,7 +2,6 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-
 bru_options_set(bru_verbose = TRUE,
 #                 control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
                 control.inla = list(int.strategy="auto"))
@@ -24,16 +23,15 @@ sett_subset <- sett_all %>%
 env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
 env_vars$forest_distances <- env_vars$forest_distances/1000
 
-scaling_parameters <- data.frame(
-  names = names(env_vars), 
-  means = global(env_vars, mean, na.rm=TRUE)[,1],
-  sds = global(env_vars, sd, na.rm=TRUE)[,1])
-
-
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
 
 env_vars_scaled <- terra::scale(env_vars) 
+
+scaling_parameters <- data.frame(
+  names = names(env_vars), 
+  means = global(env_vars, mean, na.rm=TRUE)[,1],
+  sds = global(env_vars, sd, na.rm=TRUE)[,1])
 
 ## load mesh boundaries and samplers ####
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
@@ -107,7 +105,7 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(1.5, 0.1), # 1 third range mesh
+                                          prior.range = c(0.8, 0.1), # 1 third range mesh
                                           prior.sigma = c(0.2, 0.1))
 
 
@@ -623,3 +621,4 @@ multiplot(
 
 beepr::beep(sound = 3)
 # ggsave("Outputs/sett_model/setts_covars.png")
+
