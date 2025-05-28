@@ -36,12 +36,12 @@ ggplot(boundary) +
 
 meshes = list()
 meshes[[1]] =  fm_mesh_2d_inla(boundary = list(boundary, boundary2),
-                               max.edge = c(20,80), cutoff = 20, crs = projKM)
+                               max.edge = c(20,100), cutoff = 20, crs = projKM)
 # meshes[[1]] <- mesh_20k
 
 ggplot() + gg(meshes[[1]]) + coord_equal()
 
-n_meshes = 4
+n_meshes = 5
 
 for(i in 2:n_meshes) {
   meshes[[i]] = fmesher:::fm_subdivide(meshes[[i-1]])
