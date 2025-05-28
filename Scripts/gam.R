@@ -2,49 +2,43 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-# load ireland maps 
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS") %>% 
-  st_transform(crs = projKM) 
-
-ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp") %>% 
-  st_transform(crs = projKM) 
-
-
+  st_transform(crs = projKM)
 # 1. Clean badger dataset ####
 
-badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>% 
+badgers_all <- readRDS("Data/badgers_all_2023.RDS") %>% 
   st_transform(crs = projKM) 
 
-
 badgers_clean <- badgers_all %>% 
-  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE_CAUGHT, PROGRAMME, geometry) %>% 
-  filter(PROGRAMME == "Vaccination", 
-         AGE == "Adult", 
-         !is.na(WEIGHT), 
-         WEIGHT < 20, 
-         !is.na(SEX)) %>% 
-  mutate(MONTH = month(DATE_CAUGHT))
+  filter(
+    # PROGRAMME == "Vaccination", 
+    !is.na(WEIGHT),
+    WEIGHT < 20,
+    # AGE == "Adult",
+    !is.na(SEX), 
+    !is.na(MONTH))
 
 ggplot(badgers_clean) + 
-  geom_boxplot(aes(x = factor(MONTH), y = WEIGHT, fill = factor(MONTH))) + 
-  theme_bw() + 
+  geom_boxplot(aes(x = MONTH, y = WEIGHT, fill = PROGRAMME)) + 
   scale_x_discrete(breaks=seq(1, 12, 1), 
                    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
                               "Jul", "Aug", 
                               "Sep", "Oct", "Nov", "Dec")) +
-  scale_fill_discrete(breaks=seq(1, 12, 1), 
-                      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                 "Jul", "Aug", 
-                                 "Sep", "Oct", "Nov", "Dec")) +
-  labs(x = "Month of capture", y = "Weight (kg)", fill = "Month of capture") + 
+  labs(x = "Month of capture", y = "Weight (kg)", fill = "Programme") + 
   facet_wrap(~SEX) + 
-  ggtitle("Weight by month")
+  ggtitle("Weight by month")  +
+  theme_bw()
+
 
 ggplot(badgers_clean)  + 
   geom_histogram(aes(x = WEIGHT, col = SEX, fill = SEX), alpha = 0.5, binwidth = 1) + 
   theme_bw() + 
   facet_wrap(~SEX) +
   NULL
+
+badgers_clean <- badgers_clean %>% 
+  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE_CAUGHT, MONTH)
+
 
 # 2. Extract model predictions ####
 
@@ -61,9 +55,9 @@ sett_pred2 <- sett_pred %>%
   
 sett_rast <- rast(sett_pred2, type="xyz", crs = crs(sett_pred))
 
-plot(sett_rast)
+sumplot(sett_rast)
 
-locs_sett <- extract(sett_rast, badgers_clean)
+locs_sett <- terra::extract(sett_rast, badgers_clean)
 
 
 badger_pred <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
@@ -85,14 +79,25 @@ locs_badger <- extract(badger_rast, badgers_clean)
 
 
 badgers_clean <- badgers_clean %>% 
-  mutate(B_DENSITY = locs_badger$z, 
-         S_DENSITY = locs_sett$z, 
+  mutate(B_DENSITY = locs_badger$z,
+         S_DENSITY = locs_sett$z,
          x = st_coordinates(.)[,1],
-         y = st_coordinates(.)[,2]) 
+         y = st_coordinates(.)[,2],
+         SEX = as.factor(SEX)) %>%
+  select(WEIGHT, MONTH, B_DENSITY, S_DENSITY, x, y, SEX) %>%
+  mutate(MONTH = as.numeric(MONTH)) %>% 
+  st_drop_geometry() %>%
+  as.data.frame()
+
+str(badgers_clean)
 
 
 names(badgers_clean)
 
+badgers_clean %>% 
+  group_by(SEX) %>% 
+  summarise(mean = mean(WEIGHT), 
+            sd = sd(WEIGHT))
 
 saveRDS(badgers_clean, file = "Data/badgers_for_gam.RDS")
 
@@ -102,12 +107,8 @@ badgers_clean <- readRDS("Data/badgers_for_gam.RDS")
 
 badgers_clean <- badgers_clean %>% drop_na()
 
-library(mgcv)
-library(mgcViz)
-library(rgl)
 
 m1 <- gam(formula = WEIGHT ~ s(MONTH, bs = "cc", k = 12) + 
-            # s(B_DENSITY, k = 50) + s(S_DENSITY, k = 50) +
             s(B_DENSITY, S_DENSITY, k = 10) + 
             s(x, y, k = 29) +
             SEX, 
@@ -117,6 +118,7 @@ m1 <- gam(formula = WEIGHT ~ s(MONTH, bs = "cc", k = 12) +
           # family = "gaussian")
           family = Gamma(link=log))
 
+saveRDS(m1, file = "Outputs/gam_model.RDS")
 summary(m1)
 m1Viz <- getViz(m1, nsim = 100)
 
@@ -128,8 +130,6 @@ check(m1Viz,
       a.respoi = list(size = 0.5), 
       a.hist = list(bins = 50))
 
-
-library(gstat)
 
 residuals_m1 <- residuals(m1)
 spatial_data <- data.frame(x = badgers_clean$x, y = badgers_clean$y, residuals = residuals_m1)
@@ -146,16 +146,15 @@ ck4 <- check1D(m1Viz, "y")
 ck5 <- check1D(m1Viz, "SEX")
 ck6 <- check1D(m1Viz, "MONTH")
 
-gridPrint(ck1 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2), 
-          ck2 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2), ncol = 2)
-#variance of the residuals higher at extreme values of density for both setts and badgers
+gridPrint(ck1 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2) + 
+            labs(x = "Badger density"), 
+          ck2 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2) + 
+            labs(x = "Sett density"), 
+          ck3 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2) + 
+            labs(x = "Easting"), 
+          ck4 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2) + 
+            labs(x = "Northing"), ncol = 2)
 
-gridPrint(ck1 + l_gridCheck1D(gridFun = sd, showReps = TRUE) + l_rug(alpha = 0.2), 
-          ck2 + l_gridCheck1D(gridFun = sd, showReps = TRUE) + l_rug(alpha = 0.2), ncol = 2)
-# higher variance of residuals coincides with less data points, not much to do about it 
-
-gridPrint(ck3 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2), 
-          ck4 + l_dens(type = "cond", alpha = 0.8) + l_rug(alpha = 0.2), ncol = 2)
 # variance of the residuals higher at low x values, but otherwise not too bad 
 
 gridPrint(ck3 + l_gridCheck1D(gridFun = sd, showReps = TRUE) + l_rug(alpha = 0.2), 
@@ -202,7 +201,10 @@ plot(m1Viz, select = 4) +
 
 
 
-vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 40)
+vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 40, n.grid = 50, 
+        type = "response", color = "terrain", xlab = "Badger density", 
+        ylab = "Sett density", zlab = "Effect")
+
 
 
 
