@@ -164,6 +164,9 @@ forestdist_df <- lp4$forestDistance[!inside,]
 forestdist <- forestdist_df %>%
   mutate(Variable = "Distance to forest edge")
 
+limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
+                   forestdist_df$q0.5, topo_df$q0.5))) * c(-1, 1)
+
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S1.pdf", 
     width = 12, height = 8)
 
@@ -171,45 +174,45 @@ ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
   labs(title = "Elevation effect", x = "", y = "", fill = "Median") +
   
-  ggplot() + 
+ggplot() + 
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
   labs(title = "Slope effect", x = "", y = "", fill = "Median") +
   
-  ggplot() + 
+ggplot() + 
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
   labs(title = "Pasture and grasslands effect", x = "", y = "", fill = "Median") +
   
-  ggplot() +
+ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
   labs(title = "Topographic wetness index effect", x = "", y = "", fill = "Mean") +
   
-  ggplot() +
+ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
   labs(title = "Human footprint index effect", x = "", y = "", fill = "Mean") +
   
-  ggplot() +
+ggplot() +
   gg(data = forestdist_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_outline_sf, fill = NA) +
+  geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
   labs(title = "Distance to forest edge", x = "", y = "", fill = "Mean") +
   
-  plot_layout(ncol = 3)
+plot_layout(ncol = 3)
 
 dev.off()
 
@@ -447,4 +450,59 @@ ggplot() +
 
 dev.off()
 
+# Fig. 6 GAM output ####
 
+m1 <- readRDS("Outputs/gam_model.RDS")
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6.pdf", 
+    width = 10, height = 10)
+vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 40, n.grid = 50, 
+        type = "response", color = "terrain", xlab = "Badger density", 
+        ylab = "Sett density", zlab = "Effect")
+
+dev.off()
+
+# Fig. 7 Group size ####
+
+sett_pred <- readRDS("Outputs/sett_model/response_predictor.RDS")
+
+inside = sapply(st_intersects(sett_pred$all, ireland_outline_sf), function(x){length(x)==0})
+sett_pred <- sett_pred$all[!inside,]
+
+sett_pred2 <- sett_pred %>% 
+  mutate(x = st_coordinates(.)[,1], 
+         y = st_coordinates(.)[,2]) %>% 
+  select(x, y, z = q0.5) %>% 
+  st_drop_geometry()
+
+sett_rast <- rast(sett_pred2, type="xyz", crs = crs(sett_pred))
+
+badger_pred <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
+
+inside = sapply(st_intersects(badger_pred$all, ireland_outline_sf), function(x){length(x)==0})
+badger_pred <- badger_pred$all[!inside,]
+
+badger_pred2 <- badger_pred %>% 
+  mutate(x = st_coordinates(.)[,1], 
+         y = st_coordinates(.)[,2]) %>% 
+  select(x, y, z = q0.5) %>% 
+  st_drop_geometry()
+
+badger_rast <- rast(badger_pred2, type="xyz", crs = crs(sett_pred))
+
+group_size <- badger_rast/sett_rast
+
+group_size_df <- as.data.frame(group_size, xy = T)
+
+group_size_sf <- st_as_sf(group_size_df, coords = c("x", "y"), 
+                          crs = st_crs(ireland_counties))
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_7.pdf", 
+    width = 8, height = 8)
+ggplot() + 
+  gg(data = group_size_sf, aes(fill = z), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA, col = "white") +
+  labs(x = "", y = "", fill = "Badgers/Setts") +  
+  scale_fill_viridis_c(option = "D") + 
+  theme_bw()
+dev.off()
