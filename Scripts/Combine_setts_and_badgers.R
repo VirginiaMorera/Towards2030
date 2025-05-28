@@ -3,7 +3,7 @@ source("Scripts/setup.R")
 
 # Load datasets ####
 
-sett_all <- readRDS("Data/sett_all_2023.RDS")
+sett_all <- readRDS("Data/sett_new_data.RDS")
 badgers_all <- readRDS("Data/badgers_all_2023.RDS")
 IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
 ireland <- st_read("Data/Other/ireland_ITM.shp")
@@ -162,7 +162,7 @@ effort <- readRDS("Data/Inla/weightedSampler.RDS") %>%
   filter(NDAYS > 0)
 
 setts_in = st_filter(sett_all, effort, .pred = st_intersects)
-saveRDS(setts_in, file = "Data/sett_all_inside_effort.RDS")
+saveRDS(setts_in, file = "Data/sett_new_inside_effort.RDS")
 
 # Divide into vaccination and culling badgers to try and model separately ####
 
@@ -234,3 +234,15 @@ ggplot(vac_filtered) +
 
 saveRDS(vac_filtered, "Data/vaccination_badgers_jittered_filtered.RDS")
 
+
+## revert back to samplers without effort
+
+sett_all <- readRDS("Data/sett_new_data.RDS")
+samplers <- readRDS("Data/Inla/samplers.RDS")
+
+
+ggplot() + 
+  geom_sf(data = ireland_counties, fill = "orange") + 
+  geom_sf(data = samplers) + 
+  geom_sf(data = sett_all, size = 0.5, alpha = 0.5) + 
+  theme_bw()
