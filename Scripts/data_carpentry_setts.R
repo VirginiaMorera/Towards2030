@@ -1,16 +1,15 @@
 rm(list = ls())
 source("Scripts/setup.R")
-
-#### Load and clean sett data ####
-
-# load
-# sett <- read_csv("Data/Raw/forR_SETT_SUMMARY_111121.csv")
-sett <- read_xlsx("Data/Raw/tbl_sett_record_2023.xlsx")
-
-# sett_spatial <- read_sf("Data/Raw/Sett_Summary_111121.shp")
 ireland <- st_read("Data/Other/ireland_ITM.shp")
 
-# remove unnecessary columns and clean
+
+# Sett database ####
+# this contains all setts ever found, environmental info, and date they were first found
+
+## load sett database ####
+sett <- read_xlsx("Data/Raw/TBL_SETT_RECORD_2025.xlsx")
+
+## clean sett database ####
 sett_clean <- sett %>% 
   # remove unnecessary or empty variables
   dplyr::select(
@@ -34,9 +33,9 @@ sett_clean <- sett %>%
                                 '6' = "Other"), 
          OTHERSETTTYPE = as.factor(OTHERSETTTYPE), 
          # turn date into date format, add month and year
-         DATE_OF_FIELD_VISIT = dmy(DATE_OF_FIELD_VISIT), 
-         YEAR = year(DATE_OF_FIELD_VISIT),
-         MONTH = month(DATE_OF_FIELD_VISIT, label = TRUE),
+         DATE_FOUND = dmy(DATE_OF_FIELD_VISIT), 
+         YEAR_FOUND = year(DATE_FOUND),
+         MONTH_FOUND = month(DATE_FOUND, label = TRUE),
          # sett all empty OTHERSETTTYPE as NA
          OTHERSETTTYPE = na_if(OTHERSETTTYPE, "NA"), 
          RESTRAINTS = as.numeric(RESTRAINTS), 
@@ -56,21 +55,26 @@ sett_clean <- sett %>%
          y_coordinate = sf::st_coordinates(.)[,2])  
   # st_set_geometry(NULL) %>% 
   
-
 attributes(sett_clean$x_coordinate) <- NULL
 attributes(sett_clean$y_coordinate) <- NULL
+
+ggplot() + 
+  geom_sf(data = ireland) + 
+  geom_sf(data = sett_clean) + 
+  theme_bw()
 
 #remove weird point out at sea
 
 sett_clean <- sett_clean %>% 
-  mutate(Lon = st_coordinates(.)[,2]) %>% 
-  filter(Lon > min(Lon, na.rm = T)) %>% 
-  select(-Lon)
+  mutate(Lon = st_coordinates(.)[,2]) %>%
+  filter(Lon > min(Lon, na.rm = T)) %>%
+  select(-Lon) 
 
 
-# saveRDS(sett_clean, file = "Data/sett_all_2023.RDS")
-sett_all <- readRDS("Data/sett_all_2023.RDS")
-#### Visualise sett data ####
+# saveRDS(sett_clean, file = "Data/sett_all_2025.RDS")
+sett_all <- readRDS("Data/sett_all_2025.RDS")
+
+## Visualise sett database ####
 
 ## main setts
 sett_all %>% 
@@ -82,6 +86,12 @@ sett_all %>%
   labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
+
+## setts by year 
+
+ggplot(sett_all) +
+  geom_bar(aes(x = YEAR_FOUND, fill = MAIN_SETT), stat = "count") + 
+  theme_bw()
 
 # some areas have not been sampled. Are there no setts? or no farms? 
 
@@ -99,7 +109,7 @@ sett_all %>%
 
 ## number of restrains
 sett_all %>% 
-  filter(RESTRAINTS < 20 & RESTRAINTS > 0) %>%
+  filter(RESTRAINTS < 40 & RESTRAINTS > 0) %>%
   ggplot +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") + 
   geom_sf(aes(col = RESTRAINTS), alpha = 0.5, size = 1) +  
@@ -142,13 +152,11 @@ grid::grid.raster(img)
 
 #### visualise setts by year ####
 
-table(sett_all$last_visit_est)
-
 ## before 2000
 p1 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR < 2000), 
+  geom_sf(data = . %>% filter(YEAR_FOUND < 2000), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
@@ -162,7 +170,7 @@ p1 <- ggplot(sett_all) +
 p2 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR < 2005 & YEAR > 2000), 
+  geom_sf(data = . %>% filter(YEAR_FOUND < 2005 & YEAR_FOUND > 2000), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
@@ -176,7 +184,7 @@ p2 <- ggplot(sett_all) +
 p3 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR < 2010 & YEAR > 2005), 
+  geom_sf(data = . %>% filter(YEAR_FOUND < 2010 & YEAR_FOUND > 2005), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") + 
@@ -188,7 +196,7 @@ p3 <- ggplot(sett_all) +
 p4 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR < 2015 & YEAR > 2010), 
+  geom_sf(data = . %>% filter(YEAR_FOUND < 2015 & YEAR_FOUND > 2010), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") +  
@@ -200,7 +208,7 @@ p4 <- ggplot(sett_all) +
 p5 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR < 2020 & YEAR > 2015), 
+  geom_sf(data = . %>% filter(YEAR_FOUND < 2020 & YEAR_FOUND > 2015), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") +  
@@ -212,7 +220,7 @@ p5 <- ggplot(sett_all) +
 p6 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
-  geom_sf(data = . %>% filter(YEAR > 2020), 
+  geom_sf(data = . %>% filter(YEAR_FOUND > 2020), 
           aes(col = MAIN_SETT), size = 1, alpha = 0.5) +  
   scale_colour_viridis_d(option = "C") + 
   labs(x = "Longitude", y = "Latitude", col = "Main sett") +  
@@ -222,5 +230,31 @@ p6 <- ggplot(sett_all) +
 
 
 gridExtra::grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
+
+# Sett visit history ####
+
+## load sett history ####
+sett_history <- readRDS("Data/Raw/sett_history_with_dates-RDS")
+
+sett_info <- sett_all %>% 
+  select(-NO_BADGERS_CAPTURED, -CAPTURE_BLOCK_ID, -CAPTURE_BLOCK_EVENT, -QUARTILE)
+
+
+setts_2019 <- sett_history %>% 
+  mutate(YEAR = year(DATE_COMMENCED)) %>% 
+  filter(YEAR > 2018) %>% 
+  inner_join(sett_info) %>% 
+  st_as_sf(sf_column_name = "geometry", crs = st_crs(sett_all)) %>% 
+  select(SETT_ID, MAIN_SETT) %>% 
+  distinct()
+
+saveRDS(setts_2019, file = "Data/setts_2025.RDS")
+
+# Plot final dataset for modelling
+ggplot() + 
+  geom_sf(data = ireland, fill = NA) + 
+  geom_sf(data = setts_2019, aes(col = MAIN_SETT)) + 
+  theme_bw() + labs(col = "Main")
+ 
 
 
