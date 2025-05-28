@@ -9,15 +9,13 @@ bru_options_set(bru_verbose = TRUE,
 # Preparation of data ####
 
 ## load sett data and covariates ####
-sett_all <- readRDS("Data/sett_all_inside_effort.RDS") %>% 
+sett_all <- readRDS("Data/sett_new_inside_effort.RDS") %>% 
   st_transform(crs = projKM) 
 
 sett_subset <- sett_all %>% 
-  mutate(year = lubridate::year(DATE_OF_FIELD_VISIT)) %>% 
+  mutate(year = lubridate::year(last_visit)) %>% 
   filter(year > 2018) %>% 
-  filter(ACTIVITY > 1) %>% 
   filter(MAIN_SETT == "Yes") %>%
-  filter(CAPTURE_BLOCK_ID %!in% c("NOT ASSIGN", "NOT ASSIGNE")) %>% 
   select(SETT_ID, geometry)
 
 env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
@@ -82,7 +80,7 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(2, 0.1), # 1 third range mesh
+                                     prior.range = c(3, 0.1), # 1 third range mesh
                                      prior.sigma = c(1, 0.1))
 
 ### 1d mesh for slope ####
@@ -93,8 +91,8 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(2, 0.1), # 1 third range mesh
-                                      prior.sigma = c(0.5, 0.1))
+                                      prior.range = c(1, 0.1), # 1 third range mesh
+                                      prior.sigma = c(2, 0.1))
 
 
 ### 1d mesh for grasslands and pastures ####
@@ -106,7 +104,7 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
                                           prior.range = c(0.8, 0.1), # 1 third range mesh
-                                          prior.sigma = c(0.2, 0.1))
+                                          prior.sigma = c(0.5, 0.1))
 
 
 ### 1d mesh for distance to forests ####
@@ -117,8 +115,8 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(4, 0.1), # 1 third range mesh
-                                            prior.sigma = c(0.5, 0.1))
+                                            prior.range = c(1.5, 0.1), # 1 third range mesh
+                                            prior.sigma = c(1, 0.1))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -128,8 +126,8 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(3, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.5, 0.1))
+                                     prior.range = c(3.3, 0.5), # 1 third range mesh
+                                     prior.sigma = c(1, 0.5))
 
 
 ### 1d mesh for human footprint index ####
@@ -140,30 +138,26 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(4, 0.1), # 1 third range mesh
-                                    prior.sigma = c(0.5, 0.1))
+                                    prior.range = c(2.1, 0.5), # 1 third range mesh
+                                    prior.sigma = c(1, 0.5))
 
 # M4 non-linear covar effects + spde ####
 
 ## Set up spde ####
 
-matern2D_small <- inla.spde2.pcmatern(mesh,
-                                prior.range = c(20, 0.9),  #1/3 y coordinate 90
-                                prior.sigma = c(0.1, 0.1)) #0.001
-
-matern2D_big <- inla.spde2.pcmatern(mesh,
-                                    prior.range = c(100, 0.01),  #1/3 y coordinate 90
-                                    prior.sigma = c(0.1, NA)) #0.02 at p 0.1 works
+matern2D_big <- inla.spde2.pcmatern(mesh,                                                        
+                                    alpha = 3/2,
+                                    prior.range = c(120, NA),  #1/3 y coordinate 90
+                                    prior.sigma = c(1, 0.1)) #0.02 at p 0.1 works
 
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
-  
-  Eff.elevation(elevation, model = matern1D_elev) +
+  Eff.elevation(elevation, model = "linear") +
   Eff.slope(slope, model = matern1D_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  Eff.topo(topo_wetness, model = matern1D_topo) +
+  Eff.topo(topo_wetness, model = "linear") +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
@@ -243,7 +237,7 @@ x <- lp4$all[!inside,]
 ggplot() + 
   gg(data = x, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
+  # geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
   labs(x = "", y = "", fill = "Median", 
        title = "Main sett distribution (linear scale)") +  
   theme_bw() + 
