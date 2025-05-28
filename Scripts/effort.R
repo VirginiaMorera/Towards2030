@@ -3,164 +3,156 @@ rm(list = ls())
 source("Scripts/setup.R")
 
 # load data ####
-cap <- read.csv("Data/Raw/tbl_capture_EVENTS_2023.csv") # culling capture events
-# badgers_all <- readRDS("Data/badgers_setts.RDS") # badgers georef to capture sett
-sett_all <- readRDS("Data/sett_all_2023.RDS")
-his1 <- read_excel(path = "Data/Raw/tbl_sett_record_history1.xlsx")
+cap <- read_excel("Data/Raw/TBL_CAPTURE_EVENTS_2025.xlsx") # culling capture events
+culling_cap <- cap %>% 
+  select(CAPTURE_BLOCK_EVENT, DATE_COMMENCED) 
+
+sett_all <- readRDS("Data/sett_all_2025.RDS")
+
+his1 <- read_excel(path = "Data/Raw/tbl_sett_record_history1.xlsx") 
+
 his2 <- read_excel(path = "Data/Raw/tbl_sett_record_history2.xlsx", 
-                   col_names = names(his1))
+                   col_names = names(his1)) %>% 
+  select(SETT_ID, NO_BADGERS_CAPTURED, CAPTURE_BLOCK_EVENT)
+
 his3 <- read_excel(path = "Data/Raw/tbl_sett_record_history3.xlsx", 
-                   col_names = names(his1))
+                   col_names = names(his1)) %>% 
+  select(SETT_ID, NO_BADGERS_CAPTURED, CAPTURE_BLOCK_EVENT)
+
+his1 <- his1 %>% 
+  select(SETT_ID, NO_BADGERS_CAPTURED, CAPTURE_BLOCK_EVENT)
+
 sett_history <- bind_rows(his1, his2, his3)
+
+
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
 ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp")
-vac_cap <- read.csv("Data/Raw/tbl_vaccine_2023.csv") # vaccine capture data
+
+vac_cap <- read_excel("Data/Raw/TBL_VACCINE_2025.xlsx") # vaccine capture data
+badgers_all <- read_excel("Data/Raw/tbl_vacc_badgers_2023.xlsx")
 
 quart <- read_sf("Data/Raw/just_quartiles.shp") %>% 
   rename(QUARTILE = Q) %>% 
   st_set_crs(29902) %>% 
   st_transform(st_crs(sett_all))
 
-# vaccine effort ####
+# Culling effort ####
 
-# independent of points. Count number of events per quartile, use that as unit of effort 
-# quartiles
+# in sett history, those setts who match capture events from the culling captures are separated
+# as those are easy to find the date but a bit harder to match to a quartile 
 
-vac_cap_clean <- vac_cap %>% 
-  filter(VACCINE_STATUS == "APPROVED") %>% 
-  mutate(DATE_COMMENCED = ymd_hm(DATE_COMMENCED), 
-         DATE_COMPLETED = ymd_hm(DATE_COMPLETED),
-         DURATION = DATE_COMPLETED- DATE_COMMENCED, 
-         YEAR = year(DATE_COMMENCED)) %>% 
-  select(QUARTILE, EVENT, CLUSTER_ID, DATE_COMMENCED, DATE_COMPLETED, CHNG_NO, 
-         DURATION, YEAR) %>% 
-  drop_na(DATE_COMMENCED) %>% 
-  distinct() %>% 
-  mutate(DAY_WEIGHT = 1/as.numeric(DURATION))
+culling_capture_block_events <- sett_history %>% 
+  left_join(culling_cap) %>% 
+  arrange(DATE_COMMENCED) %>%  # this gives us the date no problem 
+  filter(!is.na(DATE_COMMENCED)) %>% 
+  mutate(PROGRAMME = "Culling", 
+         NDAYS = 11)
 
-vac_cap_sum <- vac_cap_clean %>% 
-  filter(YEAR > 2018) %>% 
-  mutate(CAPTURE_BLOCK_EVENT_vacc = paste(EVENT, DATE_COMMENCED)) %>% 
-  group_by(QUARTILE) %>% 
-  summarise(NDAYS = as.numeric(sum(DURATION))) %>% 
-  ungroup()
+# now for the location we need to assign a location to each sett based on the sett register (sett all)
+sett_geom <- sett_all %>% 
+  select(SETT_ID)
 
-quart_effort <- full_join(quart, vac_cap_sum)
+culling_capture_block_events_sf <- culling_capture_block_events %>% 
+  inner_join(sett_geom) %>% 
+  st_as_sf(sf_column_name = "geometry") %>% 
+  st_set_crs(st_crs(sett_geom))
 
-p1 <- ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = quart_effort, aes(fill = NDAYS, col = NDAYS)) + 
-  # geom_sf(data = sett_all %>% filter(YEAR > 2018), size = 0.5, col = "red") +
-  scale_fill_viridis_c(na.value = NA) + 
-  scale_color_viridis_c(na.value = NA) + 
-  theme_bw() + 
-  labs(title = "Sampling effort of the vaccination programme", 
-       fill = "N days", 
-       col = "N days")
+# then we need to intersect those points with the quartile polygons to assign them a quartile number
+culling_capture_block_events <- st_intersection(quart, culling_capture_block_events_sf) %>% 
+  st_drop_geometry() %>% 
+  select(-QUART) %>% 
+  mutate(QUARTILE = as.character(QUARTILE))
 
-# culling capture events ####
+# finished! 
 
-str(cap)
-str(sett_history)
-str(sett_all)
+# Vaccination effort ####
 
-# clean capture effort data
-cap_clean  <-  cap  %>%  
-  dplyr::select(DATE_COMMENCED, DATE_COMPLETED, EVENT_NO, 
-                CAPTURE_BLOCK_EVENT, TOTAL_BADGERS) %>% 
-  mutate(DATE_COMMENCED = dmy(DATE_COMMENCED), 
-         DATE_COMPLETED = dmy(DATE_COMPLETED), 
-         YEAR = year(DATE_COMMENCED), 
-         DURATION = 11) %>%  # we assume all capture events lasted 11 days 
-  filter(YEAR > 2018)
+# those who don't have capture block events matching those of the culling captures are vaccination (mostly)
+vacc_capture_block_events <- sett_history %>% 
+  left_join(culling_cap) %>% 
+  filter(is.na(DATE_COMMENCED)) 
 
-# clean sett data (which will give us the location of the capture events )
-sett_geometry <- sett_all %>% 
-  select(SETT_ID, geometry) %>% 
+# we now get the vaccination capture events, and generate the capture block event by poasting the Quartile 
+# and the event number +1000
+vac_cap <- vac_cap %>% 
+  mutate(CAPTURE_BLOCK_EVENT = paste0(QUARTILE, "/", EVENT+1000)) %>% 
+  select(CAPTURE_BLOCK_EVENT, DATE_COMMENCED)
+
+# and from the sett history we exclude those that are not vaccination (are weird) 
+# by checking that the capture block event has not been generated as explained above
+# We then left join it to the vac_cap events containing the dates
+vacc_capture_block_events <- vacc_capture_block_events %>% 
+  separate(SETT_ID, into = c("QUARTILE", NA), sep = 5, remove = F) %>% 
+  separate(CAPTURE_BLOCK_EVENT, into = c("QUARTILE_CHECK", NA), sep = "/", remove = F) %>% 
+  mutate(vacc_effort = if_else(QUARTILE == QUARTILE_CHECK, "Yes", "No")) %>% 
+  filter(vacc_effort == "Yes") %>% 
+  select(SETT_ID, QUARTILE, NO_BADGERS_CAPTURED, CAPTURE_BLOCK_EVENT) %>% 
+  left_join(vac_cap) %>% 
+  filter(!is.na(DATE_COMMENCED)) %>% 
+  mutate(PROGRAMME = "Vaccination", 
+         NDAYS = 6)
+
+# Bind them ####
+effort_with_dates <- bind_rows(vacc_capture_block_events, culling_capture_block_events) %>% 
+  arrange(CAPTURE_BLOCK_EVENT) %>% 
+  filter(SETT_ID %!in% c("BLANK", "2")) 
+
+saveRDS(effort_with_dates, "Data/Raw/sett_history_with_dates-RDS")  
+
+effort_with_dates <- effort_with_dates %>% 
+  select(-SETT_ID) %>% 
   distinct()
 
-# clean sett history data 
-sett_history_clean <- sett_history %>% 
-  select(SETT_ID, CAPTURE_BLOCK_EVENT, CAPTURE_BLOCK_ID) 
-
-# merge sett_history with capture data to subset only the capture events we're interested in 
-cap_clean2 <- cap_clean %>% 
-  left_join(sett_history_clean, by = "CAPTURE_BLOCK_EVENT")
-# this has repeated rows for every capture block event because there's more than one sett per event
-
-# add sett location
-cap_clean2 <- cap_clean2 %>% 
-  inner_join(sett_geometry) %>% 
-  st_as_sf(sf_column_name = "geometry") %>% 
-  st_set_crs(st_crs(quart))
-
-# intercept setts and quartiles to see in which sett a quartile is 
-setts_per_quartile <- st_intersection(quart, cap_clean2) %>% 
-  filter(YEAR > 2018) %>% 
-  st_drop_geometry()
 
 
-# from 2019 onwards, how many unique capture events in each quartile
-quart_sum <- setts_per_quartile %>% 
-  dplyr::select(-SETT_ID) %>% 
-  distinct() %>% 
-  mutate(DURATION = 11) %>% # we assume all capture events lasted 11 days
+# Effort per quartile ####
+effort_per_quartile_total <- effort_with_dates %>% 
   group_by(QUARTILE) %>% 
-  summarise(NDAYS = sum(DURATION)) %>%  
-  left_join(quart, by = "QUARTILE") %>% 
-  st_as_sf(sf_column_name = "geometry")
+  summarise(NDAYS = sum(NDAYS))
 
-p2 <- ggplot() + 
-   geom_sf(data = ireland_outline_sf) + 
-   geom_sf(data = quart_sum, aes(fill = NDAYS, col = NDAYS)) + 
-   # geom_sf(data = sett_all, size = 0.1, col = "white") +
-   scale_fill_viridis_c() +
-   scale_color_viridis_c() +
-   theme_bw() + 
-  labs(title = "Sampling effort of the culling programme", 
-       fill = "N days", 
-       col = "N days")
+effort_per_quartile_2019 <- effort_with_dates %>% 
+  mutate(YEAR = year(DATE_COMMENCED)) %>% 
+  filter(YEAR > 2018) %>% 
+  group_by(QUARTILE) %>% 
+  summarise(NDAYS = sum(NDAYS))
 
+effort_total_sf <- quart %>% 
+  mutate(QUARTILE = as.character(QUARTILE)) %>% 
+  left_join(effort_per_quartile_total)
 
-gridExtra::grid.arrange(p2, p1, nrow = 1)
-
-# combine
-
-head(quart_sum)
-head(quart_effort)
-
-vacc_effort <- quart_effort %>% 
-  select(QUARTILE, NDAYS)
-
-saveRDS(vacc_effort, file = "Data/Inla/vacc_effort.RDS")
-
-vacc_effort <- readRDS("Data/Inla/vacc_effort.RDS")
-
-cul_effort <- quart_sum %>% 
-  select(QUARTILE, NDAYS) 
-
-saveRDS(cul_effort, file = "Data/Inla/cul_effort.RDS")
-cul_effort <- readRDS("Data/Inla/cul_effort.RDS")
-
-all_effort <- bind_rows(vacc_effort, cul_effort)
-
-all_effort_final <- all_effort %>% 
-  group_by(QUARTILE) %>%
-  summarise(NDAYS = sum(NDAYS, na.rm = T)) %>%
-  filter(NDAYS > 0)
+effort_2019_sf <- quart %>%  
+  mutate(QUARTILE = as.character(QUARTILE)) %>% 
+  left_join(effort_per_quartile_2019)
 
 ggplot() + 
-  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = all_effort_final, aes(fill = NDAYS, col = NDAYS)) + 
+  geom_sf(data = effort_total_sf, aes(fill = NDAYS), col = NA) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "black") + 
+  theme_bw() + 
+  labs(title = "All effort") + 
+  
+  ggplot() + 
+  geom_sf(data = effort_2019_sf, aes(fill = NDAYS), col = NA) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "black") + 
+  theme_bw() + 
+  labs(title = "Effort since 2019")
+
+saveRDS(effort_total_sf, file = "Data/Inla/all_effort.RDS")
+saveRDS(effort_2019_sf, file = "Data/Inla/2019_effort.RDS")
+
+ggplot() + 
+  geom_sf(data = effort_2019_sf, aes(fill = NDAYS, col = NDAYS)) + 
   scale_fill_viridis_c(na.value = NA) + 
   scale_color_viridis_c(na.value = NA) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "red") + 
   theme_bw() + 
   labs(title = "Sampling effort of culling and vaccination programmes combined", 
        fill = "N days", 
        col = "N days")
 
 # log the nº of days as number of setts found will saturate with effort
-all_effort_final_log <- all_effort_final %>% 
+all_effort_final_log <- effort_2019_sf %>% 
   mutate(WEIGHT = log(NDAYS))
 
 
@@ -178,18 +170,18 @@ ggplot() +
        fill = "N days (log)", 
        col = "N days (log)")
 
-saveRDS(all_effort_final, file = "Data/Inla/weightedSampler.RDS")
+saveRDS(effort_2019_sf, file = "Data/Inla/weightedSampler.RDS")
 saveRDS(all_effort_final_log, file = "Data/Inla/log_weightedSampler.RDS")
 
 all_effort_final <- readRDS("Data/Inla/weightedSampler.RDS")
 
 ggplot() + 
   geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
-  geom_sf(data = all_effort_final, aes(fill = WEIGHT, col = WEIGHT)) + 
+  geom_sf(data = all_effort_final, aes(fill = NDAYS, col = NDAYS)) + 
   geom_sf(data = ireland_counties, fill = NA, col = "black") + 
   scale_fill_viridis_c(na.value = NA) + 
   scale_color_viridis_c(na.value = NA) + 
   theme_bw() + 
   labs(title = "Sampling effort of culling and vaccination programmes combined", 
-       fill = "N days (log)", 
-       col = "N days (log)") 
+       fill = "N days", 
+       col = "N days") 
