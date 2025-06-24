@@ -201,3 +201,29 @@ writeRaster(env_vars_smooth3, filename = "Data/all_covars_1km_smooth3.grd",
             format = "raster", overwrite = T)
 writeRaster(env_vars_smooth5, filename = "Data/all_covars_1km_smooth5.grd", 
             format = "raster", overwrite = T)
+
+
+## sett model output as covar in the badger model
+ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
+rp4 <- readRDS("Outputs/sett_model/response_predictor.RDS")
+
+inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
+y <- rp4$all[!inside,]
+
+
+r <- stars::st_rasterize(y %>% dplyr::select(median, geometry))
+plot(r)
+r <- rast(r)
+
+
+env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
+
+r <- resample(r, env_vars)
+
+env_vars$setts <- r
+
+plot(env_vars)
+
+writeRaster(env_vars, file = "Data/Covars/final_covars_terra_with_setts.grd", overwrite = T)
+
+saveRDS(env_vars, file = "env_vars_with_setts.RDS")
