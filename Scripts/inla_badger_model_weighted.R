@@ -15,11 +15,10 @@ badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>%
 # badger_subset <- badgers_all %>% 
 #   filter(YEAR > 2018)
 
-env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
-setts_raster <- terra::rast("Outputs/sett_pred_response.grd")
+env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
+
 
 env_vars$forest_distances <- env_vars$forest_distances/1000
-env_vars$setts <- setts_raster
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
 
