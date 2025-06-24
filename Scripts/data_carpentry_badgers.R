@@ -8,90 +8,72 @@ ireland <- st_read("Data/Other/ireland_ITM.shp")
 ## Culling programme badgers ####
 
 ### Load and clean badger data ####
-badgers <- read_xlsx("Data/Raw/tbl_captured_badgers_2023.xlsx")
+badgers <- read_xlsx("Data/Raw/TBL_CAPTURED_BADGERS_2025.xlsx")
 
 # remove unnecessary columns and clean
 badgers_clean <- badgers %>% 
   # select columns to retain
   dplyr::select(-AGE, -GIRTH, -LENGTH, -DATE_SETT_LAST_CHECKED, -COST, 
                 -TOTAL_COST, -POSTMORTEM_CODE, -INVOICE_NO, -DATE_ENTERED) %>% 
-  mutate(
-    # remove weird ' from badger names
-    across('BADGER_ID', str_replace, "`", ""),
-    # replace  \ with / in capture block event
-    across('CAPTURE_BLOCK_EVENT', str_replace, "\\\\", "/"),
-    # turn sex into categorical
-    SEX = recode(SEX, D = NA_character_, Female = "Female", Male = "Male", 
-                 Unknown = NA_character_, Unknownm = NA_character_),
-    SEX = factor(SEX, levels = c("Female", "Male")), 
-    # turn weight into NA if it's 0
-    WEIGHT = na_if(WEIGHT, 0))
+  separate(DATE_CAUGHT, into = c("DATE_CAUGHT_B", NA), sep = " ") %>% 
+  mutate(DATE_CAUGHT_B = dmy(DATE_CAUGHT_B),  
+         # remove weird ' from badger names
+         across('BADGER_ID', str_replace, "`", ""),
+         # replace  \ with / in capture block event
+         across('CAPTURE_BLOCK_EVENT', str_replace, "\\\\", "/"),
+         # turn sex into categorical
+         SEX = recode(SEX, D = NA_character_, Female = "Female", Male = "Male", 
+                      Unknown = NA_character_, Unknownm = NA_character_),
+         SEX = factor(SEX, levels = c("Female", "Male")), 
+         # turn weight into NA if it's 0
+         WEIGHT = na_if(WEIGHT, 0))
 
 ### Load and clean capture block event data ####
-capture_events <- read_xlsx("Data/Raw/tbl_capture_EVENTS_2023.xlsx")
+capture_events <- read_xlsx("Data/Raw/TBL_CAPTURE_EVENTS_2025.xlsx")
 
 capture_events %<>%
-  mutate(event_duration = DATE_COMPLETED - DATE_COMMENCED) %>% 
-  select(-diff, -diff2)
+  select(CAPTURE_BLOCK_EVENT, DATE_COMMENCED, DATE_COMPLETED, TOTAL_BADGERS)
 
 ### Add capture dates to badger data and clean mistakes ####
 badgers_clean_with_date <- badgers_clean %>% 
-  left_join(capture_events)
+  left_join(capture_events) 
 
-## Events where the number of badgers captured field doesn't match the number of 
-#  badgers in the dataset  
+# There's 385 badgers where the year of capture in the badger dataset doesn't 
+# match the date that appears in the capture event dataset. We'll take the capture
+# event dataset as the true date (even if we're not sure it is).
 
-unmatched_cap_events <- badgers_clean_with_date %>% 
-  group_by(CAPTURE_BLOCK_EVENT) %>% 
-  summarise(n_rows = n(),
-            badgers_captured = unique(TOTAL_BADGERS), 
-            diff = n_rows - badgers_captured) %>% 
-  filter(!is.na(badgers_captured)) %>% # remove events where number of badgers wasn't recorded, we'll have to trust the number of rows
-  # mutate(diff = replace_na(diff, 0)) %>% 
-  filter(diff != 0) %>% # remove events where badgers captured matches no rows
-  filter(abs(diff) != 1) %>% # remove events where the difference is just 1 (close enough)
-  filter(diff %!in% -2:-5) # if we're missing 2 to 5 rows we might accept it
-  
+# there's 124 badgers th didn't match with a capture event so there's no capture 
+# event date. However, in 47 of those there's a date in the badger dataset, so 
+# we'll use that date for those 47 and remove the rest which have no date info at all. 
+
 badgers_clean_with_date <- badgers_clean_with_date %>% 
-  filter(CAPTURE_BLOCK_EVENT %!in% unmatched_cap_events$CAPTURE_BLOCK_EVENT)
+  mutate(DATE = if_else(is.na(DATE_COMMENCED), DATE_CAUGHT_B, DATE_COMMENCED))
 
-## Events where the capture date doesn't fall within the dates of the capture event
-just_date <- badgers_clean_with_date %>% 
-  select(BADGER_ID, DATE_CAUGHT, DATE_COMMENCED, DATE_COMPLETED, CAPTURE_BLOCK_EVENT) %>% 
-  mutate(diff_time = difftime(DATE_COMPLETED, DATE_COMMENCED, units = "days"), 
-         checks = if_else(DATE_CAUGHT >= DATE_COMMENCED & DATE_CAUGHT <= DATE_COMPLETED, 
-                          "Yes", "No")) %>% 
-  filter(checks == "No")
-  
-badgers_cleaner_with_date <- badgers_clean_with_date %>% 
-  filter(CAPTURE_BLOCK_EVENT %!in% just_date$CAPTURE_BLOCK_EVENT)
-
-c_badgers <- badgers_cleaner_with_date %>% 
-  select(SETT_ID:DATE_COMPLETED) %>% 
+c_badgers <- badgers_clean_with_date %>% 
+  select(SETT_ID, BADGER_ID, SEX, WEIGHT, CAPTURE_BLOCK_EVENT, DATE) %>% 
   mutate( 
     # add columns to match with the vaccination ds
     BADGER_ACTION = "REMOVED", 
     VACCINATION = "N", 
     PROGRAMME = "Culling", 
-    BADGER_STATUS = "Culled", 
-    DATE_EST =  DATE_COMMENCED + floor(difftime(DATE_COMPLETED, DATE_COMMENCED, units = "days")/2),
-    DATE_CAUGHT = if_else(is.na(DATE_CAUGHT), DATE_EST, DATE_CAUGHT))
+    BADGER_STATUS = "Culled") %>% 
+  filter(!is.na(DATE))
   
 ## Vaccination programme badgers ####
 
 ### Load and clean badger data ####
 
-badgers_vacc <- read_xlsx("Data/Raw/tbl_vacc_badgers_2023.xlsx")
+badgers_vacc <- read_xlsx("Data/Raw/TBL_VACC_BADGERS_2025.xlsx")
 
 v_badgers <- badgers_vacc %>% 
-  mutate(CAPTURE_BLOCK_EVENT = paste(QUARTILE, EVENT_NO, sep = "_")) %>% 
+  mutate(CAPTURE_BLOCK_EVENT = paste0(QUARTILE, "/", EVENT_NO+1000)) %>% 
   # select necessary variables
-  dplyr::select(SETT_ID, BADGER_ID, DATE_CAUGHT = DATE_CAPTURE, SEX, AGE, WEIGHT,
+  dplyr::select(SETT_ID, BADGER_ID, SEX, AGE, WEIGHT, DATE = DATE_CAPTURE,
                 VACCINATION, CAPTURE_BLOCK_EVENT,
                 ECTOPARASITES, BADGER_STATUS,
                 ECTOPARASITE_TYPE, BADGER_ACTION, DATE_ENTERED, 
                 ) %>% 
-  # modify date caught 
+  # clean data
   mutate(SEX = recode(SEX, 'F' = "Female", 'FEMALE' = "Female", 
                       'M' = "Male", 'MALE' = "Male", 
                       'X' = NA_character_), 
@@ -124,47 +106,41 @@ v_badgers <- badgers_vacc %>%
         # id programme
          PROGRAMME = "Vaccination", 
          # clean weight variable
-         WEIGHT = na_if(WEIGHT, 0))
+         WEIGHT = na_if(WEIGHT, 0)) %>% 
+  filter(!is.na(DATE))
 
-## Load and clean vaccination effort data ####
-effort <- read_xlsx("Data/Raw/tbl_vaccine_2023.xlsx")
-
-effort <- effort %>% 
-  mutate(CAPTURE_BLOCK_EVENT = paste(QUARTILE, EVENT, sep = "_"), 
-         diff_time = difftime(DATE_COMPLETED, DATE_COMMENCED, units = "days")) %>% 
-  select(CAPTURE_BLOCK_EVENT, diff_time, VACCINE_STATUS, VACC_VISIT)
-  
 
 ## Put everything together ####
 badgers_all <- bind_rows(c_badgers, v_badgers) %>% 
-  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE_CAUGHT, 
-         CAPTURE_BLOCK_EVENT, PROGRAMME) %>% 
+  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE, 
+         CAPTURE_BLOCK_EVENT, PROGRAMME, BADGER_ACTION) %>% 
   mutate(
-    DATE_CAUGHT = as.Date(DATE_CAUGHT),
-    YEAR = as.factor(year(DATE_CAUGHT)), 
-    MONTH = as.factor(month(DATE_CAUGHT)), 
+    DATE = as.Date(DATE),
+    YEAR = as.factor(year(DATE)), 
+    MONTH = as.factor(month(DATE)), 
     MONTHYEAR = ym(paste(YEAR, MONTH, sep = "_"))
   )
-# saveRDS(badgers_all, file = "Data/badgers_all_2023.RDS")
 
-#### Visualise badger individual data ####
+culled_total <- badgers_all %>% 
+  filter(BADGER_ACTION == "REMOVED")
 
-badgers_all <- readRDS("Data/badgers_all_2023.RDS")
+saveRDS(culled_total, file = "Data/culled_both_programmes.RDS")
 
-
-## remove repeated observations of goodgers 
+## remove repeated observations of goodgers ####
 
 badgers_all <- badgers_all %>%
   group_by(BADGER_ID) %>%
-  arrange(DATE_CAUGHT) %>% 
+  arrange(DATE) %>% 
   slice(1) %>%
   ungroup()
 
-saveRDS(badgers_all, file = "Data/badgers_all_2023.RDS")
+saveRDS(badgers_all, file = "Data/badgers_all_2025.RDS")
+
+# Visualise badger data ####
 
 # Date captured
 ggplot(badgers_all) + 
-  geom_bar(aes(x = DATE_CAUGHT, fill = MONTH, group = MONTH)) + 
+  geom_bar(aes(x = DATE, fill = MONTH, group = MONTH)) + 
   scale_x_date(date_breaks = "1 year",date_labels = "%Y") + 
   labs(x = "Date", y = "Number of badgers", fill = "Month") + 
   scale_fill_discrete(na.value = "gray") + 
@@ -185,7 +161,8 @@ badgers_all %>%
   filter(WEIGHT < 20) %>%
   ggplot + 
   geom_histogram(aes(x = WEIGHT), binwidth = 0.5) +
-  facet_wrap(~SEX)
+  facet_wrap(~SEX) + 
+  theme_bw()
 
 # weight by month
 badgers_all %>% 
