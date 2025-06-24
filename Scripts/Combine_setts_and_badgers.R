@@ -3,9 +3,9 @@ source("Scripts/setup.R")
 
 # Load datasets ####
 
-sett_all <- readRDS("Data/sett_new_data.RDS")
-badgers_all <- readRDS("Data/badgers_all_2023.RDS")
-IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
+sett_all <- readRDS("Data/sett_all_2025.RDS")
+badgers_all <- readRDS("Data/badgers_all_2025.RDS")
+# IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
 ireland <- st_read("Data/Other/ireland_ITM.shp")
 
 # Merge badger and sett data ####
@@ -22,13 +22,17 @@ all_data <- badgers_all %>%
   distinct() %>% 
   filter(!is.na(x_coord)) %>% 
   st_as_sf(coords = c("x_coord", "y_coord"), crs = st_crs(ireland), remove = F) 
-  
-saveRDS(all_data, file = "Data/badgers_setts.RDS")  
+
+# we've lost 1,115 badgers here, which were assigned to a sett that doesn't 
+# appear on the sett register
+
+saveRDS(all_data, file = "Data/culled_both_programmes.RDS")  
+
 # Display badgerXsett data ####
 
 # How many capture events per sett
 
-all_data <- readRDS(file = "Data/badgers_setts.RDS")  
+all_data <- readRDS(file = "Data/badgers_setts_2025.RDS")  
 
 
 all_data %>% 
@@ -37,7 +41,7 @@ all_data %>%
   ggplot + 
   geom_bar(aes(x = n_capture_events)) + 
   theme_bw() + 
-  labs(x = "Number of capture events", y = "Number of setts")
+  labs(x = "Number of capture events per sett", y = "Number of setts")
 
 # map capture events per sett and year spatially
 all_data %>% 
@@ -72,7 +76,8 @@ all_data %>%
   ggplot + 
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "gray40") + 
-  geom_sf(data = . %>% filter(n_capture_events>1), aes(col = n_capture_events), alpha = 0.5, size = 1) + 
+  geom_sf(data = . %>% filter(n_capture_events>1), aes(col = n_capture_events), size = 1) + 
+  geom_sf(data = ireland, col = "red", fill = NA) +
   scale_color_viridis() + 
   labs(col = "N of capture events") + 
   theme_bw() + 
@@ -80,7 +85,6 @@ all_data %>%
 
 # Jitter badger locations to model them as lgcp ####
 sampler <- readRDS("Data/Inla/weightedSampler.RDS")
-ireland <- readRDS("Data/Inla/ireland_outline_km.RDS")
 
 sampler <- sampler %>% 
   filter(NDAYS > 0) %>% 
@@ -88,9 +92,12 @@ sampler <- sampler %>%
 
 all_data_jit <- all_data %>% 
   st_jitter(amount = 500) %>% 
-  mutate(YEAR = year(DATE_CAUGHT)) %>% 
+  mutate(YEAR = as.numeric(as.character(YEAR))) %>% 
   filter(YEAR > 2018)
   
+filtered = st_filter(all_data_jit, sampler, .pred = st_intersects)
+
+
 ggplot(filtered) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(data = sampler, fill = NA, col = "red") + 
@@ -98,12 +105,9 @@ ggplot(filtered) +
   theme_bw()
 
 
-filtered = st_filter(all_data_jit, sampler, .pred = st_intersects)
+saveRDS(filtered, "Data/badgers_jittered_filtered_2025.RDS")
 
-
-saveRDS(filtered, "Data/badgers_jittered_filtered.RDS")
-
-badgers_jit <- readRDS("Data/badgers_jittered_filtered.RDS")
+badgers_jit <- readRDS("Data/badgers_jittered_filtered_2025.RDS")
 
 badgers_2 <- badgers_jit %>% 
   st_transform(4326) %>% 
@@ -162,7 +166,7 @@ effort <- readRDS("Data/Inla/weightedSampler.RDS") %>%
   filter(NDAYS > 0)
 
 setts_in = st_filter(sett_all, effort, .pred = st_intersects)
-saveRDS(setts_in, file = "Data/sett_new_inside_effort.RDS")
+saveRDS(setts_in, file = "Data/sett_2025_inside_effort.RDS")
 
 # Divide into vaccination and culling badgers to try and model separately ####
 
@@ -246,3 +250,27 @@ ggplot() +
   geom_sf(data = samplers) + 
   geom_sf(data = sett_all, size = 0.5, alpha = 0.5) + 
   theme_bw()
+
+# Culling history ####
+all_data <- readRDS("Data/culled_both_programmes.RDS")  
+env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
+
+all_data_sub <- st_transform(all_data, st_crs(env_vars))  %>% 
+  mutate(YEAR = as.numeric(as.character(YEAR))) %>% 
+  filter(YEAR < 2019 & YEAR > 2013)
+
+point_ras <- rasterize(vect(all_data_sub), env_vars$elevation, fun = "length")
+point_ras <- subst(point_ras, NA, 0)
+plot(point_ras)
+point_ras_smooth <- terra::focal(point_ras, w = 9, fun = "mean", 
+                                 na.policy = "omit", fillvalue = 0)
+point_ras_smooth <- mask(point_ras_smooth, env_vars$elevation)
+plot(point_ras_smooth)
+
+env_vars$cull_hist_2014_2018 <- point_ras_smooth
+
+writeRaster(env_vars, "Data/Covars/final_covars_terra_with_cull.grd", overwrite = T) 
+env_vars <- terra::rast("Data/Covars/final_covars_terra_with_cull.grd")
+
+saveRDS(env_vars, file = "Data/Covars/final_covars_terra_with_cull.RDS")
+plot(env_vars, maxnl=32)
