@@ -9,14 +9,13 @@ bru_options_set(bru_verbose = TRUE,
 # Preparation of data ####
 
 ## load sett data and covariates ####
-sett_all <- readRDS("Data/sett_new_inside_effort.RDS") %>% 
+sett_all <- readRDS("Data/sett_2025_inside_effort.RDS") %>% 
   st_transform(crs = projKM) 
 
 sett_subset <- sett_all %>% 
-  mutate(year = lubridate::year(last_visit)) %>% 
-  filter(year > 2018) %>% 
   filter(MAIN_SETT == "Yes") %>%
-  select(SETT_ID, geometry)
+  dplyr::select(SETT_ID, geometry) %>% 
+  distinct() 
 
 env_vars <- terra::rast("Data/Covars/final_covars_terra.grd")
 env_vars$forest_distances <- env_vars$forest_distances/1000
@@ -41,7 +40,7 @@ ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp") %>%
 mesh <- readRDS("Data/Inla/meshes.RDS")[[2]]
 mesh$crs <- projKM
 
-int_pointsw <- readRDS("Data/Inla/log_weighted_int_points4.RDS")
+int_pointsw <- readRDS("Data/Inla/weighted_int_points4.RDS")
 
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
@@ -80,8 +79,8 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(3, 0.1), # 1 third range mesh
-                                     prior.sigma = c(1, 0.1))
+                                     prior.range = c(2, 0.99), # 1 third range mesh
+                                     prior.sigma = c(2, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
@@ -103,8 +102,8 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(0.8, 0.1), # 1 third range mesh
-                                          prior.sigma = c(0.5, 0.1))
+                                          prior.range = c(2, 0.99), # 1 third range mesh
+                                          prior.sigma = c(2, 0.1))
 
 
 ### 1d mesh for distance to forests ####
@@ -115,8 +114,8 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(1.5, 0.1), # 1 third range mesh
-                                            prior.sigma = c(1, 0.1))
+                                            prior.range = c(1, 0.1), # 1 third range mesh
+                                            prior.sigma = c(2, 0.1))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -126,8 +125,8 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(3.3, 0.5), # 1 third range mesh
-                                     prior.sigma = c(1, 0.5))
+                                     prior.range = c(1, 0.1), # 1 third range mesh
+                                     prior.sigma = c(2, 0.1))
 
 
 ### 1d mesh for human footprint index ####
@@ -138,17 +137,17 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(2.1, 0.5), # 1 third range mesh
-                                    prior.sigma = c(1, 0.5))
+                                    prior.range = c(1, 0.1), # 1 third range mesh
+                                    prior.sigma = c(2, 0.1))
 
 # M4 non-linear covar effects + spde ####
 
 ## Set up spde ####
 
-matern2D_big <- inla.spde2.pcmatern(mesh,                                                        
-                                    alpha = 3/2,
-                                    prior.range = c(120, NA),  #1/3 y coordinate 90
-                                    prior.sigma = c(1, 0.1)) #0.02 at p 0.1 works
+matern2D_big <- inla.spde2.pcmatern(mesh,      
+                                    # alpha = 3/2,
+                                    prior.range = c(100, 0.01),  #1/3 y coordinate 90
+                                    prior.sigma = c(0.01, NA)) #0.02 at p 0.1 works
 
 ## Formula ####
 
@@ -320,47 +319,49 @@ forestdist_df <- lp4$forestDistance[!inside,]
 forestdist <- forestdist_df %>%
   mutate(Variable = "Distance to forest edge")
 
+limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
+                   forestdist_df$q0.5, topo_df$q0.5))) * c(-1, 1)
 
 ggplot() + 
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Elevation effect", x = "", y = "", fill = "Median") +
   
 ggplot() + 
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Slope effect", x = "", y = "", fill = "Median") +
   
 ggplot() + 
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Pasture and grasslands effect", x = "", y = "", fill = "Median") +
 
 ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_outline_sf, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) +
   labs(title = "Topographic wetness index effect", x = "", y = "", fill = "Mean") +
 
 ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_outline_sf, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) +
   labs(title = "Human footprint index effect", x = "", y = "", fill = "Mean") +
   
 ggplot() +
   gg(data = forestdist_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_outline_sf, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1) +
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) +
   labs(title = "Distance to forest edge", x = "", y = "", fill = "Mean") +
  
 plot_layout(ncol = 3)
@@ -368,20 +369,10 @@ plot_layout(ncol = 3)
   
 ## Spde and cor covariance plots ####
 
-spde.range <- spde.posterior(m4, "Eff.smooth_big", what = "range")
-spde.logvar <- spde.posterior(m4, "Eff.smooth_big", what = "log.variance")
-range.plot <- plot(spde.range)
-var.plot <- plot(spde.logvar)
-
-corplot <- plot(spde.posterior(m4, "Eff.smooth_big", what = "matern.correlation"))
-covplot <- plot(spde.posterior(m4, "Eff.smooth_big", what = "matern.covariance"))
-
-multiplot(range.plot, var.plot, covplot, corplot)
-
-multiplot(plot(spde.posterior(m4, "Eff.forestdist", what = "range")), 
-          plot(spde.posterior(m4, "Eff.forestdist", what = "log.variance")), 
-          plot(spde.posterior(m4, "Eff.forestdist", what = "matern.correlation")), 
-          plot(spde.posterior(m4, "Eff.forestdist", what = "matern.covariance")))
+multiplot(plot(spde.posterior(m4, "Eff.smooth_big", what = "range")), 
+          plot(spde.posterior(m4, "Eff.smooth_big", what = "log.variance")), 
+          plot(spde.posterior(m4, "Eff.smooth_big", what = "matern.correlation")), 
+          plot(spde.posterior(m4, "Eff.smooth_big", what = "matern.covariance")))
 
 ## Evaluate effects ####
 
