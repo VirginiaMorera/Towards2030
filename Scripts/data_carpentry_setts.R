@@ -234,7 +234,7 @@ gridExtra::grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 # Sett visit history ####
 
 ## load sett history ####
-sett_history <- readRDS("Data/Raw/sett_history_with_dates-RDS")
+sett_history <- readRDS("Data/Raw/sett_history_with_dates.RDS")
 
 sett_info <- sett_all %>% 
   select(-NO_BADGERS_CAPTURED, -CAPTURE_BLOCK_ID, -CAPTURE_BLOCK_EVENT, -QUARTILE)
@@ -248,7 +248,7 @@ setts_2019 <- sett_history %>%
   select(SETT_ID, MAIN_SETT) %>% 
   distinct()
 
-saveRDS(setts_2019, file = "Data/setts_2025.RDS")
+saveRDS(setts_2019, file = "Data/setts_2019_2025.RDS")
 
 # Plot final dataset for modelling
 ggplot() + 
