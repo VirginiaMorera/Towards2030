@@ -9,15 +9,15 @@ bru_options_set(bru_verbose = FALSE,
 # Preparation of data ####
 
 ## load sett data and covariates ####
-badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>% 
+badgers_all <- readRDS("Data/badgers_jittered_filtered_2025.RDS") %>% 
   st_transform(crs = projKM) 
 
 # badger_subset <- badgers_all %>% 
 #   filter(YEAR > 2018)
 
 env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
-
-
+ch <- readRDS("Data/Covars/culling_history.RDS")
+ch <- project(ch, crs(env_vars))
 env_vars$forest_distances <- env_vars$forest_distances/1000
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
@@ -29,6 +29,12 @@ scaling_parameters <- data.frame(
   means = global(env_vars, mean, na.rm=TRUE)[,1],
   sds = global(env_vars, sd, na.rm=TRUE)[,1])
 
+scaling_parameters_ch <- data.frame(
+  names = "cull_hist", 
+  means = global(ch, mean, na.rm=TRUE)[,1],
+  sds = global(ch, sd, na.rm=TRUE)[,1])
+
+scaling_parameters <- bind_rows(scaling_parameters, scaling_parameters_ch)
 
 ## load mesh boundaries and samplers ####
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
@@ -68,30 +74,31 @@ heat_loading <- env_vars_scaled$heat_loading_index
 topo_wetness <- env_vars_scaled$topographic_wetness_index
 human_footprint <- env_vars_scaled$human_footprint_index
 setts <- env_vars_scaled$setts
+cull_hist <- scale(ch)
 
 ## Prepare 1D meshes for covars ####
 
 ### 1d mesh for elevation ####
 mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1, 
                                 max(elevation[], na.rm = T)+1, 
-                                length.out = 20),
+                                length.out = 10),
                             degree = 2)
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(2, 0.1), # 1 third range mesh
+                                     prior.range = c(5, 0.1), # 1 third range mesh
                                      prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
                                  max(slope[], na.rm = T)+1, 
-                                 length.out = 20), 
+                                 length.out = 10), 
                              degree = 2) 
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(3, 0.01), # 1 third range mesh
-                                      prior.sigma = c(0.1, 0.01))
+                                      prior.range = c(2, 0.1), # 1 third range mesh
+                                      prior.sigma = c(0.5, 0.1))
 
 
 ### 1d mesh for grasslands and pastures ####
@@ -102,81 +109,88 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(0.3, 0.1), # 1 third range mesh
+                                          prior.range = c(1, 0.1), # 1 third range mesh
                                           prior.sigma = c(1, 0.1))
 
 
 ### 1d mesh for distance to forests ####
 mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
                                        max(forestDist[], na.rm = T)+1,
-                                       length.out = 20),
+                                       length.out = 10),
                                    degree = 2)
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(4, 0.9), # 1 third range mesh
+                                            prior.range = c(2, 0.1), # 1 third range mesh
                                             prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
                                 max(topo_wetness[], na.rm = T)+1,
-                                length.out = 20),
+                                length.out = 10),
                             degree = 2)
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(2, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.5, 0.1))
+                                     prior.range = c(1, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.1, 0.1))
 
 
 ### 1d mesh for human footprint index ####
 mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
                                max(human_footprint[], na.rm = T)+1,
-                               length.out = 20),
+                               length.out = 10),
                            degree = 2)
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(3, 0.1), # 1 third range mesh
-                                    prior.sigma = c(0.5, 0.1))
+                                    prior.range = c(1, 0.1), # 1 third range mesh
+                                    prior.sigma = c(1, 0.1))
 
 ### 1d mesh for sett distribution ####
 mesh1D_sett <- inla.mesh.1d(seq(min(setts[], na.rm = T)-1,
-                               max(setts[], na.rm = T)+1,
-                               length.out = 20),
-                           degree = 2)
+                                max(setts[], na.rm = T)+1,
+                                length.out = 10),
+                            degree = 2)
 
 diff(range(setts[], na.rm = T))/3
 matern1D_sett <- inla.spde2.pcmatern(mesh1D_sett,
-                                    prior.range = c(4, 0.01), # 1 third range mesh
-                                    prior.sigma = c(0.1, 0.1))
+                                     prior.range = c(2, 0.1), # 1 third range mesh
+                                     prior.sigma = c(1, 0.1))
 
+### 1d mesh for culling history ####
+mesh1D_cull <- inla.mesh.1d(seq(min(cull_hist[], na.rm = T)-1,
+                                max(cull_hist[], na.rm = T)+1,
+                                length.out = 10),
+                            degree = 2)
+
+diff(range(cull_hist[], na.rm = T))/3
+matern1D_cull <- inla.spde2.pcmatern(mesh1D_cull,
+                                     prior.range = c(3, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.8, 0.1))
 
 # M4 non-linear covar effects + spde ####
 
 ## Set up spde ####
 
-matern2D_small <- inla.spde2.pcmatern(mesh,
-                                      prior.range = c(30, 0.1),  #1/3 y coordinate 90
-                                      prior.sigma = c(0.01, 0.1)) #0.001
-
 matern2D_big <- inla.spde2.pcmatern(mesh,
-                                    prior.range = c(90, 0.1),  #1/3 y coordinate 90
-                                    prior.sigma = c(0.1, NA)) #
+                                    prior.range = c(120, 0.01),  #1/3 y coordinate 90
+                                    prior.sigma = c(0.01, NA)) 
 
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
-  
   Eff.elevation(elevation, model = matern1D_elev) +
   Eff.slope(slope, model = matern1D_slope) +
-  Eff.grassPast(grasslandsPastures, model = "linear") +
+  Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
   Eff.topo(topo_wetness, model = matern1D_topo) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
   Eff.sett(setts, model = matern1D_sett) +
+  Eff.cull(cull_hist, model = matern1D_cull) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
+
 
 ## Run model ####
 m4 <- lgcp(nonlinear_SPDE,
@@ -205,6 +219,7 @@ lp4 <- predict(
     topoWetness = Eff.topo,
     forestDistance = Eff.forestdist,
     setts = Eff.sett,
+    cull = Eff.cull,
     spfield_big = Eff.smooth_big,
     
     all = Intercept +
@@ -215,8 +230,9 @@ lp4 <- predict(
       Eff.topo +
       Eff.forestdist +
       Eff.sett + 
+      Eff.cull + 
       Eff.smooth_big
-    ))
+  ))
 
 # saveRDS(lp4, file = "Outputs/badgers_all_model/linear_predictor.RDS")
 # lp4 <- readRDS("Outputs/badgers_all_model/linear_predictor.RDS")
@@ -235,8 +251,10 @@ rp4 <- predict(
                 Eff.topo +
                 Eff.sett + 
                 Eff.forestdist +
+                Eff.cull + 
                 Eff.smooth_big
-              )))
+    )))
+
 
 # saveRDS(rp4, file = "Outputs/badgers_all_model/response_predictor.RDS")
 # rp4 <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
@@ -412,7 +430,6 @@ multiplot(range.plot, var.plot, covplot, corplot)
 
 ## Evaluate effects ####
 
-
 #### Elevation ####
 
 elevation_scaled <- extract(elevation, badgers_all)
@@ -422,31 +439,31 @@ elev.pred <- predict(
   m4,
   n.samples = 100,
   newdata = data.frame(elevation_var = seq(min(elevation[], na.rm = T), 
-                                       quantile(elevation[], probs = 0.99, na.rm = T), 
-                                       length.out = 100)),
+                                           quantile(elevation[], probs = 0.99, na.rm = T), 
+                                           length.out = 100)),
   formula = ~ Eff.elevation_eval(elevation_var)) 
 
 eval.elev <- ggplot(elev.pred) +
-    geom_line(aes(elevation_var, q0.5)) +
-    geom_ribbon(aes(elevation_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) + 
-    geom_rug(data = elevation_scaled, aes(x = elevation), inherit.aes = F) + 
-    geom_rug(data = elevation_ipoints, aes(x = elevation), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(elevation[], na.rm = T), 
-                                    quantile(elevation[], probs = 0.99, na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(seq(min(env_vars$elevation[], na.rm = T), 
-                                          quantile(env_vars$elevation[], probs = 0.99, na.rm = T), 
-                                          length.out = 10), 0), 
-                       limits = c(min(elevation[], na.rm = T), 
-                                  quantile(elevation[], probs = 0.99, na.rm = T))) + 
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
-    #                    limits = c(-1.5, 1.5)) + 
-    labs(x = "Elevation", y = "Effect") + 
-    theme_bw()
+  geom_line(aes(elevation_var, q0.5)) +
+  geom_ribbon(aes(elevation_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) + 
+  geom_rug(data = elevation_scaled, aes(x = elevation), inherit.aes = F) + 
+  geom_rug(data = elevation_ipoints, aes(x = elevation), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(elevation[], na.rm = T), 
+                                  quantile(elevation[], probs = 0.99, na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$elevation[], na.rm = T), 
+                                        quantile(env_vars$elevation[], probs = 0.99, na.rm = T), 
+                                        length.out = 10), 0), 
+                     limits = c(min(elevation[], na.rm = T), 
+                                quantile(elevation[], probs = 0.99, na.rm = T))) + 
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
+  #                    limits = c(-1.5, 1.5)) + 
+  labs(x = "Elevation", y = "Effect") + 
+  theme_bw()
 
 #### Slope ####
 
@@ -457,31 +474,31 @@ slope.pred <- predict(
   m4,
   n.samples = 100,
   newdata = data.frame(slope_var = seq(min(slope[], na.rm = T), 
-                                   quantile(slope[], 0.99, na.rm = T), 
-                                   length.out = 100)),
+                                       quantile(slope[], 0.99, na.rm = T), 
+                                       length.out = 100)),
   formula = ~ Eff.slope_eval(slope_var)) 
 
 eval.slope <- ggplot(slope.pred) +
-    geom_line(aes(slope_var, q0.5)) +
-    geom_ribbon(aes(slope_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) +
-    geom_rug(data = slope_scaled, aes(x = slope)) + 
-    geom_rug(data = slope_ipoints, aes(x = slope), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(env_vars_scaled$slope[], na.rm = T), 
-                                    max(env_vars_scaled$slope[], na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(seq(min(env_vars$slope[], na.rm = T), 
-                                          max(env_vars$slope[], na.rm = T), 
-                                          length.out = 10)*100, 0), 
-                       limits = c(min(env_vars_scaled$slope[], na.rm = T), 
-                                  quantile(env_vars_scaled$slope[], 0.99, na.rm = T))) + 
-    labs(x = "Slope", y = "Effect") +
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-    #                    limits = c(-1.5, 1.5)) + 
-    theme_bw()
+  geom_line(aes(slope_var, q0.5)) +
+  geom_ribbon(aes(slope_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  geom_rug(data = slope_scaled, aes(x = slope)) + 
+  geom_rug(data = slope_ipoints, aes(x = slope), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$slope[], na.rm = T), 
+                                  max(env_vars_scaled$slope[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$slope[], na.rm = T), 
+                                        max(env_vars$slope[], na.rm = T), 
+                                        length.out = 10)*100, 0), 
+                     limits = c(min(env_vars_scaled$slope[], na.rm = T), 
+                                quantile(env_vars_scaled$slope[], 0.99, na.rm = T))) + 
+  labs(x = "Slope", y = "Effect") +
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
+  #                    limits = c(-1.5, 1.5)) + 
+  theme_bw()
 
 
 #### Grasslands ####
@@ -498,29 +515,29 @@ grasslandPastures.pred <- predict(
                              quantile(grasslandsPastures[], 0.99, na.rm = T),
                              length.out = 100)),   
   formula = ~ Eff.grassPast_eval(grass_var)) 
- 
+
 
 eval.grasslandsPastures <- ggplot(grasslandPastures.pred) +
-    geom_line(aes(grass_var, q0.5)) +
-    geom_ribbon(aes(grass_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) + 
-    geom_rug(data = grasslandPastures_scaled, aes(x = GrasslandPastures)) + 
-    geom_rug(data = grasslandPastures_ipoints, aes(x = GrasslandPastures), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(grasslandsPastures[], na.rm = T), 
-                                    max(grasslandsPastures[], na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(100*(seq(min(env_vars$GrasslandPastures[], na.rm = T), 
-                                               max(env_vars$GrasslandPastures[], na.rm = T), 
-                                               length.out = 10)), 0), 
-                       limits = c(min(grasslandsPastures[], na.rm = T),
-                                  quantile(grasslandsPastures[], 0.99, na.rm = T))) + 
-    labs(x = "Percentage of pastures and grasslands", y = "Effect") + 
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-    #                    limits = c(-1.5, 1.5)) + 
-    theme_bw()
+  geom_line(aes(grass_var, q0.5)) +
+  geom_ribbon(aes(grass_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) + 
+  geom_rug(data = grasslandPastures_scaled, aes(x = GrasslandPastures)) + 
+  geom_rug(data = grasslandPastures_ipoints, aes(x = GrasslandPastures), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(grasslandsPastures[], na.rm = T), 
+                                  max(grasslandsPastures[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(100*(seq(min(env_vars$GrasslandPastures[], na.rm = T), 
+                                             max(env_vars$GrasslandPastures[], na.rm = T), 
+                                             length.out = 10)), 0), 
+                     limits = c(min(grasslandsPastures[], na.rm = T),
+                                quantile(grasslandsPastures[], 0.99, na.rm = T))) + 
+  labs(x = "Percentage of pastures and grasslands", y = "Effect") + 
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
+  #                    limits = c(-1.5, 1.5)) + 
+  theme_bw()
 
 #### Human footprint index ####
 
@@ -537,63 +554,26 @@ hfi.pred <- predict(
   formula = ~ Eff.hfi_eval(hfi_var)) 
 
 eval.hfi <- ggplot(hfi.pred) +
-    geom_line(aes(hfi_var, q0.5)) +
-    geom_ribbon(aes(hfi_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) +
-    geom_rug(data = hfi_scaled, aes(x = human_footprint_index)) + 
-    geom_rug(data = hfi_ipoints, aes(x = human_footprint_index), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(env_vars_scaled$human_footprint_index[], na.rm = T), 
-                                    max(env_vars_scaled$human_footprint_index[], na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(seq(min(env_vars$human_footprint_index[], na.rm = T), 
-                                          max(env_vars$human_footprint_index[], na.rm = T), 
-                                          length.out = 10), 0), 
-                       limits = c(min(human_footprint[], na.rm = T), 
-                                  quantile(human_footprint[], 0.99, na.rm = T))) + 
-    labs(x = "Human footprint index", y = "Effect") +
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-    #                    limits = c(-1.5, 1.5)) + 
-    theme_bw()
-
-
-#### Topographic wetness index ####
-
-topo_scaled <- extract(topo_wetness, badgers_all)
-topo_ipoints <- extract(topo_wetness, int_pointsw)
-
-topo.pred <- predict(
-  m4,
-  n.samples = 100, 
-  newdata = data.frame(topo_var = seq(
-    quantile(topo_wetness[], 0.01, na.rm = T), 
-    quantile(topo_wetness[], 0.99, na.rm = T), 
-    length.out = 100)),
-  formula = ~ Eff.topo_eval(topo_var)) 
-
-eval.topo <- ggplot(topo.pred) +
-    geom_line(aes(topo_var, q0.5)) +
-    geom_ribbon(aes(topo_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) +
-    geom_rug(data = topo_scaled, aes(x = topographic_wetness_index)) + 
-    geom_rug(data = topo_ipoints, aes(x = topographic_wetness_index), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(env_vars_scaled$topographic_wetness_index[], na.rm = T), 
-                                    max(env_vars_scaled$topographic_wetness_index[], na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(seq(min(env_vars$topographic_wetness_index[], na.rm = T), 
-                                          max(env_vars$topographic_wetness_index[], na.rm = T), 
-                                          length.out = 10), 0), 
-                       limits = c(quantile(topo_wetness[], 0.01, na.rm = T), 
-                                  quantile(topo_wetness[], 0.99, na.rm = T))) + 
-    labs(x = "Topographic wetness index", y = "Effect") +
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-    #                    limits = c(-1.5, 1.5)) + 
-    theme_bw() 
+  geom_line(aes(hfi_var, q0.5)) +
+  geom_ribbon(aes(hfi_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  geom_rug(data = hfi_scaled, aes(x = human_footprint_index)) + 
+  geom_rug(data = hfi_ipoints, aes(x = human_footprint_index), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$human_footprint_index[], na.rm = T), 
+                                  max(env_vars_scaled$human_footprint_index[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$human_footprint_index[], na.rm = T), 
+                                        max(env_vars$human_footprint_index[], na.rm = T), 
+                                        length.out = 10), 0), 
+                     limits = c(min(human_footprint[], na.rm = T), 
+                                quantile(human_footprint[], 0.99, na.rm = T))) + 
+  labs(x = "Human footprint index", y = "Effect") +
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
+  #                    limits = c(-1.5, 1.5)) + 
+  theme_bw()
 
 #### Distance to forest edge ####
 
@@ -610,26 +590,26 @@ forestDist.pred <- predict(
   formula = ~ Eff.forestdist_eval(dist_var)) 
 
 eval.forestDist <- ggplot(forestDist.pred) +
-    geom_line(aes(dist_var, q0.5)) +
-    geom_ribbon(aes(dist_var,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) +
-    geom_rug(data = forestDist_scaled, aes(x = forest_distances)) + 
-    geom_rug(data = forestDist_ipoints, aes(x = forest_distances), inherit.aes = F, 
-             col = "darkgray", sides = "t") + 
-    scale_x_continuous(breaks = seq(min(env_vars_scaled$forest_distances[], na.rm = T), 
-                                    max(env_vars_scaled$forest_distances[], na.rm = T), 
-                                    length.out = 10), 
-                       labels = round(seq(min(env_vars$forest_distances[], na.rm = T), 
-                                          max(env_vars$forest_distances[], na.rm = T), 
-                                          length.out = 10), 0), 
-                       limits = c(quantile(forestDist[], 0.001, na.rm = T), 
-                                  quantile(forestDist[], 0.99, na.rm = T))) + 
-    labs(x = "Distance to forest edge", y = "Effect") +
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
-    #                    limits = c(-1.5, 1.5)) + 
-    theme_bw()
+  geom_line(aes(dist_var, q0.5)) +
+  geom_ribbon(aes(dist_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  geom_rug(data = forestDist_scaled, aes(x = forest_distances)) + 
+  geom_rug(data = forestDist_ipoints, aes(x = forest_distances), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(env_vars_scaled$forest_distances[], na.rm = T), 
+                                  max(env_vars_scaled$forest_distances[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(env_vars$forest_distances[], na.rm = T), 
+                                        max(env_vars$forest_distances[], na.rm = T), 
+                                        length.out = 10), 0), 
+                     limits = c(quantile(forestDist[], 0.001, na.rm = T), 
+                                quantile(forestDist[], 0.99, na.rm = T))) + 
+  labs(x = "Distance to forest edge", y = "Effect") +
+  # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
+  #                    limits = c(-1.5, 1.5)) + 
+  theme_bw()
 
 
 #### Sett distribution ####
@@ -658,13 +638,48 @@ eval.sett <- ggplot(sett.pred) +
   scale_x_continuous(breaks = seq(min(setts[], na.rm = T), 
                                   max(setts[], na.rm = T), 
                                   length.out = 10), 
-                     labels = round(seq(min(setts_raster[], na.rm = T),
-                                        max(setts_raster[], na.rm = T),
+                     labels = round(seq(min(setts[], na.rm = T),
+                                        max(setts[], na.rm = T),
                                         length.out = 10), 3),
                      limits = c(quantile(setts[], 0.001, na.rm = T), 
                                 quantile(setts[], 0.99, na.rm = T))) + 
   # scale_y_continuous(labels = c(-0.75, -0.5, -0.25, 0, 0.25, 0.5)) +
   labs(x = "Relative abundance of setts", y = "Effect") +
+  theme_bw()
+
+#### Culling history ####
+
+cull_scaled <- extract(cull_hist, badgers_all)
+cull_ipoints <- extract(cull_hist, int_pointsw)
+
+cull.pred <- predict(
+  m4,
+  n.samples = 100,
+  newdata = data.frame(cull_var = seq(
+    quantile(cull_hist[], 0.001, na.rm = T), 
+    quantile(cull_hist[], 0.99, na.rm = T), 
+    length.out = 100)),
+  formula = ~ Eff.cull_eval(cull_var)) 
+
+eval.cull <- ggplot(cull.pred) +
+  geom_line(aes(cull_var, q0.5)) +
+  geom_ribbon(aes(cull_var,
+                  ymin = q0.025,
+                  ymax = q0.975),
+              alpha = 0.2) +
+  geom_rug(data = cull_scaled, aes(x = z)) + 
+  geom_rug(data = cull_ipoints, aes(x = z), inherit.aes = F, 
+           col = "darkgray", sides = "t") + 
+  scale_x_continuous(breaks = seq(min(cull_hist[], na.rm = T), 
+                                  max(cull_hist[], na.rm = T), 
+                                  length.out = 10), 
+                     labels = round(seq(min(cull_hist[], na.rm = T),
+                                        max(cull_hist[], na.rm = T),
+                                        length.out = 10), 3),
+                     limits = c(quantile(cull_hist[], 0.001, na.rm = T), 
+                                quantile(cull_hist[], 0.99, na.rm = T))) + 
+  # scale_y_continuous(labels = c(-0.75, -0.5, -0.25, 0, 0.25, 0.5)) +
+  labs(x = "Culling history 2014-2018", y = "Effect") +
   theme_bw()
 
 ### plot ####
@@ -674,13 +689,9 @@ multiplot(
   eval.slope,
   eval.grasslandsPastures,
   eval.hfi,
-  eval.topo,
+  # eval.topo,
   eval.forestDist,
   eval.sett,
-  cols = 2 
+  eval.cull,
+  cols = 4 
 )
-
-beepr::beep(sound = 3)
-# ggsave("Outputs/badgers_all_model/eval_covars.png")
-
-
