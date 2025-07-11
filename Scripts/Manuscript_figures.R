@@ -11,20 +11,16 @@ ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp") %>%
 
 
 # load sett data ####
-sett_all <- readRDS("Data/sett_all_inside_effort.RDS") %>% 
+sett_all <- readRDS("Data/sett_2025_inside_effort.RDS") %>% 
   st_transform(crs = projKM) 
 
 sett_subset <- sett_all %>% 
-  mutate(year = lubridate::year(DATE_OF_FIELD_VISIT)) %>% 
-  filter(year > 2018) %>% 
-  filter(ACTIVITY > 1) %>% 
   filter(MAIN_SETT == "Yes") %>%
-  filter(CAPTURE_BLOCK_ID %!in% c("NOT ASSIGN", "NOT ASSIGNE")) %>% 
   select(SETT_ID, geometry)
 
 
 # load badger data ####
-badgers_all <- readRDS("Data/badgers_jittered_filtered.RDS") %>% 
+badgers_all <- readRDS("Data/badgers_jittered_filtered_2025.RDS") %>% 
   st_transform(crs = projKM) 
 
 
@@ -39,10 +35,12 @@ sett_sum <- m4$summary.hyperpar %>%
   separate(variable, into = c(NA, NA, NA, "variable")) %>%
   # filter(variable != "smooth") %>%
   mutate(parameter = c(rep(c("range", "sd"), 6), "range")) %>% 
-  select(variable, parameter, median = `0.5quant`, lower = `0.025quant`, upper = `0.975quant`)
+  select(variable, parameter, median = `0.5quant`, lower = `0.025quant`, 
+         upper = `0.975quant`)
 
 scaling_parameters_clean <- scaling_parameters %>% 
-  filter(names %in% c("elevation", "slope", "GrasslandPastures", "forest_distances", 
+  filter(names %in% c("elevation", "slope", "GrasslandPastures", 
+                      "forest_distances", 
                       "topographic_wetness_index", "human_footprint_index")) %>% 
   mutate(names = recode(names, "GrasslandPastures" = "grassPast", 
                         "forest_distances" = "forestdist", 
@@ -64,10 +62,10 @@ sett_sum_descaled <- sett_sum_descaled %>%
 write.csv(sett_sum_descaled, file = "Outputs/sett_model/sett_sum.csv")
 
 # Fig 1: data maps ####
-pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_1s.pdf", width = 12, height = 10)
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_1.pdf", width = 12, height = 10)
 ggplot() + 
   geom_sf(data = ireland_counties, col = "darkgray", fill = "lightgray") + 
-  geom_sf(data = sett_subset, alpha = 0.5) + 
+  geom_sf(data = sett_subset, alpha = 0.5, shape = 1, size = 1, stroke = 0.1) + 
   theme_bw() +
   
 ggplot() +   
@@ -98,7 +96,7 @@ multiplot(
   
   eval.slope,
   eval.forestdist,
-  eval.topo,
+  # eval.topo,
   cols = 2 
 )
 dev.off()
@@ -119,11 +117,10 @@ ggplot() +
   labs(x = "", y = "", fill = "Median", 
        title = "a)") +  
   theme_bw() + 
-  scale_fill_viridis_c(option = "D", 
-                       breaks = c(0.005, 0.010, 0.015, 0.020, 0.025)) +
+  scale_fill_viridis_c(option = "D") +
   NULL + 
   
-  ggplot() + 
+ggplot() + 
   gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
@@ -137,7 +134,7 @@ dev.off()
 
 
 # Fig S1. Spatial covariate effects ####
-lp4 <- readRDS("Outputs/sett_model/response_predictor.RDS")
+lp4 <- readRDS("Outputs/sett_model/linear_predictor.RDS")
 inside = sapply(st_intersects(lp4$elevation, ireland_outline_sf), function(x){length(x)==0})
 
 elev_df <- lp4$elevation[!inside,] 
@@ -152,10 +149,6 @@ grass_df <- lp4$grassland[!inside,]
 grass_df <- grass_df %>% 
   mutate(Variable = "Grasslands and pastures")
 
-topo_df <- lp4$topoWetness[!inside,]
-topo_df <- topo_df %>%
-  mutate(Variable = "Topographic wetness index")
-
 hfi_df <- lp4$hfi[!inside,]
 hfi_df <- hfi_df %>%
   mutate(Variable = "Human footprint index")
@@ -165,7 +158,7 @@ forestdist <- forestdist_df %>%
   mutate(Variable = "Distance to forest edge")
 
 limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
-                   forestdist_df$q0.5, topo_df$q0.5))) * c(-1, 1)
+                   forestdist_df$q0.5))) * c(-1, 1)
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S1.pdf", 
     width = 12, height = 8)
@@ -174,42 +167,35 @@ ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Elevation effect", x = "", y = "", fill = "Median") +
   
 ggplot() + 
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Slope effect", x = "", y = "", fill = "Median") +
   
 ggplot() + 
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() + 
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) + 
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) + 
   labs(title = "Pasture and grasslands effect", x = "", y = "", fill = "Median") +
-  
-ggplot() +
-  gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_counties, fill = NA) +
-  theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
-  labs(title = "Topographic wetness index effect", x = "", y = "", fill = "Mean") +
   
 ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) +
   labs(title = "Human footprint index effect", x = "", y = "", fill = "Mean") +
   
 ggplot() +
   gg(data = forestdist_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', direction = 1, limits = limit) +
+  scale_fill_distiller(palette = 'RdBu', direction = -1, limits = limit) +
   labs(title = "Distance to forest edge", x = "", y = "", fill = "Mean") +
   
 plot_layout(ncol = 3)
@@ -246,16 +232,17 @@ badger_sum <- m4$summary.hyperpar %>%
   mutate(variable = rownames(.)) %>% 
   separate(variable, into = c(NA, NA, NA, "variable")) %>% 
   # filter(variable != "smooth") %>%
-  mutate(parameter = c(rep(c("range", "sd"), 6), "range")) %>% 
+  mutate(parameter = c(rep(c("range", "sd"), 8), "range")) %>% 
   select(variable, parameter, median = `0.5quant`, lower = `0.025quant`, upper = `0.975quant`)
 
 scaling_parameters_clean <- scaling_parameters %>% 
-  filter(names %in% c("elevation", "slope", "forest_distances", 
-                      "topographic_wetness_index", "human_footprint_index", "setts")) %>% 
+  filter(names %in% c("elevation", "slope", "forest_distances", "GrasslandPastures",
+                      "human_footprint_index", "setts", "cull_hist")) %>% 
   mutate(names = recode(names,  
                         "forest_distances" = "forestdist", 
-                        "topographic_wetness_index" = "topo", 
+                        "GrasslandPastures" = "grassPast",
                         "human_footprint_index" = "hfi", 
+                        "cull_hist" = "cull",
                         "setts" = "sett")) %>% 
   rename(variable = names)
 
@@ -283,7 +270,8 @@ multiplot(
   eval.sett, 
   eval.slope,
   eval.forestDist,
-  eval.topo,
+  # eval.topo,
+  eval.cull,
   cols = 2 
 )
 
@@ -293,6 +281,9 @@ dev.off()
 rp4 <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
 inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
 y <- rp4$all[!inside,]
+
+y <- y %>% 
+  mutate(IQ = q0.975 - q0.025) 
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_5.pdf", 
     width = 12, height = 8)
@@ -308,14 +299,14 @@ ggplot() +
                        # breaks = c(0.005, 0.010, 0.015, 0.020, 0.025)) +
 
 ggplot() + 
-  gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
+  gg(data = y, aes(fill = IQ), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "95% CI width", 
        title = "b)") +  
   theme_bw() + 
-  scale_fill_viridis_c(option = "D",
-                       breaks = c(0.02, 0.04, 0.06, 0.08, 0.10, 0.12)) +
+  scale_fill_viridis_c(option = "D", trans = "log",
+                       breaks = c(0.001, 0.003, 0.01, 0.03, 0.1, 0.3)) +
   NULL
 
 dev.off()
@@ -344,19 +335,19 @@ fordist_df <- lp4$forestDistance[!inside,]
 fordist_df <- fordist_df %>%
   mutate(Variable = "Distance to forest edge")
 
-topo_df <- lp4$topoWetness[!inside,]
-topo_df <- topo_df %>% 
-  mutate(Variable = "Topographic wetness index")
+cull_df <- lp4$cull[!inside,]
+cull_df <- cull_df %>% 
+  mutate(Variable = "Culling history 2014 - 2018")
 
 setts_df <- lp4$setts[!inside,]
 setts_df <- setts_df %>% 
   mutate(Variable = "Sett relative density")
 
 limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
-                   fordist_df$q0.5, topo_df$q0.5, setts_df$q0.5))) * c(-1, 1)
+                   fordist_df$q0.5, setts_df$q0.5, cull_df$q0.5))) * c(-1, 1)
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S3.pdf", 
-    width = 12, height = 8)
+    width = 8, height = 8)
 ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
@@ -398,12 +389,20 @@ ggplot() +
   labs(title = "Distance to the forest edge", x = "", y = "", fill = "Mean") +
   
 ggplot() +
-  gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
+  gg(data = setts_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
   # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
-  labs(title = "Topographic wetness index", x = "", y = "", fill = "Mean") +
+  labs(title = "Sett relative density", x = "", y = "", fill = "Mean") +
+
+ggplot() +
+  gg(data = cull_df, aes(fill = q0.5), geom = "tile") +
+  geom_sf(data = ireland_counties, fill = NA) +
+  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
+  theme_bw() +
+  scale_fill_distiller(palette = 'RdBu', limit = limit) +
+  labs(title = "Culling history 2014 - 2018", x = "", y = "", fill = "Mean") +
   
 plot_layout(ncol = 3)
 dev.off()
