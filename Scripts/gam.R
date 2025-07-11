@@ -6,15 +6,20 @@ ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS") %>%
   st_transform(crs = projKM)
 # 1. Clean badger dataset ####
 
-badgers_all <- readRDS("Data/badgers_all_2023.RDS") %>% 
-  st_transform(crs = projKM) 
+badgers_all <- readRDS("Data/badgers_jittered_filtered_2025.RDS") 
+# sett_all <- readRDS("Data/sett_all_2025.RDS") %>% 
+#   select(SETT_ID)
+# 
+# badgers_all <- left_join(badgers_all, sett_all) %>% 
+#   st_as_sf(sf_column_name = "geometry")
 
 badgers_clean <- badgers_all %>% 
   filter(
     # PROGRAMME == "Vaccination", 
     !is.na(WEIGHT),
     WEIGHT < 20,
-    # AGE == "Adult",
+    # WEIGHT > 4,
+    AGE %!in% c("Cub", "Juvenile"),
     !is.na(SEX), 
     !is.na(MONTH))
 
@@ -37,7 +42,7 @@ ggplot(badgers_clean)  +
   NULL
 
 badgers_clean <- badgers_clean %>% 
-  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE_CAUGHT, MONTH)
+  select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE, MONTH) 
 
 
 # 2. Extract model predictions ####
@@ -55,7 +60,7 @@ sett_pred2 <- sett_pred %>%
   
 sett_rast <- rast(sett_pred2, type="xyz", crs = crs(sett_pred))
 
-sumplot(sett_rast)
+plot(sett_rast)
 
 locs_sett <- terra::extract(sett_rast, badgers_clean)
 
@@ -77,14 +82,18 @@ plot(badger_rast)
 
 locs_badger <- extract(badger_rast, badgers_clean)
 
+cull <- rast("Data/Covars/culling_history.grd")
+locs_culling <- extract(cull, badgers_clean)
+
 
 badgers_clean <- badgers_clean %>% 
   mutate(B_DENSITY = locs_badger$z,
          S_DENSITY = locs_sett$z,
+         CULL_HISTORY = locs_culling$z,
          x = st_coordinates(.)[,1],
          y = st_coordinates(.)[,2],
          SEX = as.factor(SEX)) %>%
-  select(WEIGHT, MONTH, B_DENSITY, S_DENSITY, x, y, SEX) %>%
+  select(WEIGHT, MONTH, B_DENSITY, S_DENSITY, CULL_HISTORY, x, y, SEX) %>%
   mutate(MONTH = as.numeric(MONTH)) %>% 
   st_drop_geometry() %>%
   as.data.frame()
@@ -101,15 +110,17 @@ badgers_clean %>%
 
 saveRDS(badgers_clean, file = "Data/badgers_for_gam.RDS")
 
+
+
 # 3. GAM ####
 
 badgers_clean <- readRDS("Data/badgers_for_gam.RDS")
 
 badgers_clean <- badgers_clean %>% drop_na()
 
-
 m1 <- gam(formula = WEIGHT ~ s(MONTH, bs = "cc", k = 12) + 
-            s(B_DENSITY, S_DENSITY, k = 10) + 
+            s(B_DENSITY, S_DENSITY, k = 12) + 
+            # s(CULL_HISTORY, k = 5) +
             s(x, y, k = 29) +
             SEX, 
           data = badgers_clean, 
@@ -118,7 +129,7 @@ m1 <- gam(formula = WEIGHT ~ s(MONTH, bs = "cc", k = 12) +
           # family = "gaussian")
           family = Gamma(link=log))
 
-saveRDS(m1, file = "Outputs/gam_model.RDS")
+# saveRDS(m1, file = "Outputs/gam_model.RDS")
 summary(m1)
 m1Viz <- getViz(m1, nsim = 100)
 
@@ -194,18 +205,11 @@ plot(sm(m1Viz, 2)) +
 plot(sm(m1Viz, 3)) + 
   l_fitRaster() + 
   l_fitContour() + 
-  l_points()
-
+  l_points() 
+  
 plot(m1Viz, select = 4) + 
   theme_bw()
 
-
-
-vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 40, n.grid = 50, 
+vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 30, n.grid = 50, 
         type = "response", color = "terrain", xlab = "Badger density", 
         ylab = "Sett density", zlab = "Effect")
-
-
-
-
-
