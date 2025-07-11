@@ -36,6 +36,7 @@ quart <- read_sf("Data/Raw/just_quartiles.shp") %>%
   st_set_crs(29902) %>% 
   st_transform(st_crs(sett_all))
 
+
 # Culling effort ####
 
 # in sett history, those setts who match capture events from the culling captures are separated
