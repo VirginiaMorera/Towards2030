@@ -257,20 +257,32 @@ env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
 
 all_data_sub <- st_transform(all_data, st_crs(env_vars))  %>% 
   mutate(YEAR = as.numeric(as.character(YEAR))) %>% 
-  filter(YEAR < 2019 & YEAR > 2013)
+  filter(YEAR < 2019 & YEAR > 2014)
 
-point_ras <- rasterize(vect(all_data_sub), env_vars$elevation, fun = "length")
-point_ras <- subst(point_ras, NA, 0)
-plot(point_ras)
-point_ras_smooth <- terra::focal(point_ras, w = 9, fun = "mean", 
-                                 na.policy = "omit", fillvalue = 0)
-point_ras_smooth <- mask(point_ras_smooth, env_vars$elevation)
-plot(point_ras_smooth)
+cull_kde <- sf.kde.new(
+  all_data_sub,
+  bw = 30,
+  ref = env_vars$elevation,
+  # res = res(env_vars$elevation),
+  standardize = FALSE,
+  scale.factor = 10000,
+  mask = F)
 
-env_vars$cull_hist_2014_2018 <- point_ras_smooth
+ggplot() + 
+  geom_spatraster(data = cull_kde, aes(fill = z)) + 
+  scale_fill_viridis_c() + 
+  # geom_sf(data= all_data_sub, size = 0.5) + 
+  theme_bw()
 
-writeRaster(env_vars, "Data/Covars/final_covars_terra_with_cull.grd", overwrite = T) 
-env_vars <- terra::rast("Data/Covars/final_covars_terra_with_cull.grd")
+ROI <- ireland %>% 
+  filter(NAME_TAG %!in% c("Antrim", "Armagh", "Down", "Fermanagh", 
+                          "Londonderry", "Tyrone")) 
 
-saveRDS(env_vars, file = "Data/Covars/final_covars_terra_with_cull.RDS")
-plot(env_vars, maxnl=32)
+ROI <- st_transform(ROI, st_crs(cull_kde))
+cull_kde_m <- mask(cull_kde, ROI)
+
+plot(cull_kde_m)
+
+writeRaster(cull_kde_m, "Data/Covars/culling_history.grd", overwrite = T) 
+
+saveRDS(cull_kde_m, file = "Data/Covars/culling_history.RDS")
