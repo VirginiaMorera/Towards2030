@@ -79,8 +79,8 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(2, 0.99), # 1 third range mesh
-                                     prior.sigma = c(2, 0.1))
+                                     prior.range = c(3, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
@@ -90,8 +90,8 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
-                                      prior.range = c(1, 0.1), # 1 third range mesh
-                                      prior.sigma = c(2, 0.1))
+                                      prior.range = c(2, 0.1), # 1 third range mesh
+                                      prior.sigma = c(0.1, 0.1))
 
 
 ### 1d mesh for grasslands and pastures ####
@@ -102,8 +102,8 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
-                                          prior.range = c(2, 0.99), # 1 third range mesh
-                                          prior.sigma = c(2, 0.1))
+                                          prior.range = c(0.1, 0.1), # 1 third range mesh
+                                          prior.sigma = c(0.1, 0.1))
 
 
 ### 1d mesh for distance to forests ####
@@ -114,8 +114,8 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
-                                            prior.range = c(1, 0.1), # 1 third range mesh
-                                            prior.sigma = c(2, 0.1))
+                                            prior.range = c(4, 0.1), # 1 third range mesh
+                                            prior.sigma = c(0.1, 0.1))
 
 ### 1d mesh for topographic wetness index ####
 mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
@@ -125,8 +125,8 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(1, 0.1), # 1 third range mesh
-                                     prior.sigma = c(2, 0.1))
+                                     prior.range = c(3.4, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.1, 0.1))
 
 
 ### 1d mesh for human footprint index ####
@@ -137,10 +137,10 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(1, 0.1), # 1 third range mesh
-                                    prior.sigma = c(2, 0.1))
+                                    prior.range = c(2, 0.1), # 1 third range mesh
+                                    prior.sigma = c(0.1, 0.1))
 
-# M4 non-linear covar effects + spde ####
+# Model ####
 
 ## Set up spde ####
 
@@ -152,14 +152,15 @@ matern2D_big <- inla.spde2.pcmatern(mesh,
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
-  Eff.elevation(elevation, model = "linear") +
+  Eff.elevation(elevation, model = matern1D_elev) +
   Eff.slope(slope, model = matern1D_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  Eff.topo(topo_wetness, model = "linear") +
+  # Eff.topo(topo_wetness, model = matern1D_topo) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
+
 
 
 ## Run model ####
@@ -482,41 +483,6 @@ eval.grasslandsPastures <- ggplot(grasslandPastures.pred) +
   #                    limits = c(-1.5, 1.5)) + 
   theme_bw()
 
-#### Topographic wetness index ####
-
-topo_scaled <- extract(topo_wetness, sett_subset)
-topo_ipoints <- extract(topo_wetness, int_pointsw)
-
-topo.pred <- predict(
-  m4,
-  n.samples = 100,
-  # n.samples = 100,
-  newdata = data.frame(topo = seq(min(topo_wetness[], na.rm = T),
-                                  quantile(topo_wetness[], 0.99, na.rm = T),
-                                  length.out = 100)),
-  formula = ~ Eff.topo_eval(topo))
-  
-eval.topo <- ggplot(topo.pred) +
-    geom_line(aes(topo, q0.5)) +
-    geom_ribbon(aes(topo,
-                    ymin = q0.025,
-                    ymax = q0.975),
-                alpha = 0.2) +
-    geom_rug(data = topo_scaled, aes(x = topographic_wetness_index)) +
-    geom_rug(data = topo_ipoints, aes(x = topographic_wetness_index), inherit.aes = F,
-             col = "darkgray", sides = "t") +
-    scale_x_continuous(breaks = seq(min(env_vars_scaled$topographic_wetness_index[], na.rm = T),
-                                    max(env_vars_scaled$topographic_wetness_index[], na.rm = T),
-                                    length.out = 10),
-                       labels = round(seq(min(env_vars$topographic_wetness_index[], na.rm = T),
-                                          max(env_vars$topographic_wetness_index[], na.rm = T),
-                                          length.out = 10), 0),
-                       limits = c(min(topo_wetness[], na.rm = T),
-                                  quantile(topo_wetness[], 0.99, na.rm = T))) +
-    labs(x = "Topographic wetness index", y = "Effect") +
-    # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
-    #                    limits = c(-1.5, 1.5)) +
-    theme_bw()
 
 #### Human footprint index ####
 
