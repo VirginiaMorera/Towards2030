@@ -34,7 +34,7 @@ sett_sum <- m4$summary.hyperpar %>%
   mutate(variable = rownames(.)) %>% 
   separate(variable, into = c(NA, NA, NA, "variable")) %>%
   # filter(variable != "smooth") %>%
-  mutate(parameter = c(rep(c("range", "sd"), 6), "range")) %>% 
+  mutate(parameter = c(rep(c("range", "sd"), 5), "range")) %>% 
   select(variable, parameter, median = `0.5quant`, lower = `0.025quant`, 
          upper = `0.975quant`)
 
@@ -60,6 +60,21 @@ sett_sum_descaled <- sett_sum_descaled %>%
          higher_s = (upper*sds) + means)
 
 write.csv(sett_sum_descaled, file = "Outputs/sett_model/sett_sum.csv")
+
+#elevation prior
+3*scaling_parameters[3,3] + scaling_parameters[3,2]
+
+#slope prior
+2*scaling_parameters[4,3] + scaling_parameters[4,2]
+
+#grassland prior
+0.1*scaling_parameters[17,3] + scaling_parameters[17,2]
+
+# distance to forest edge prior
+4*scaling_parameters[15,3] + scaling_parameters[15,2]
+
+# hfi prior
+2*scaling_parameters[14,3] + scaling_parameters[14,2]
 
 # Fig 1: data maps ####
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_1.pdf", width = 12, height = 10)
@@ -228,7 +243,10 @@ ggplot() +
 dev.off()
 
 # Table 2: badger model covariates #### 
-badger_sum <- m4$summary.hyperpar %>% 
+
+# badger_sum <- m4$summary.hyperpar %>% 
+
+badger_sum <- readRDS("Outputs/badgers_all_model/m4_summary.RDS") %>% 
   mutate(variable = rownames(.)) %>% 
   separate(variable, into = c(NA, NA, NA, "variable")) %>% 
   # filter(variable != "smooth") %>%
@@ -258,6 +276,27 @@ badger_sum_descaled <- badger_sum_descaled %>%
          higher_s = upper*sds + means)
 
 write.csv(badger_sum_descaled, file = "Outputs/badgers_all_model/badgers_sum.csv")
+
+#elevation prior
+4*scaling_parameters[3,3] + scaling_parameters[3,2]
+
+#slope prior
+2*scaling_parameters[4,3] + scaling_parameters[4,2]
+
+#grassland prior
+1*scaling_parameters[18,3] + scaling_parameters[18,2]
+
+# distance to forest edge prior
+2*scaling_parameters[15,3] + scaling_parameters[15,2]
+
+# hfi prior
+4*scaling_parameters[14,3] + scaling_parameters[14,2]
+
+# sett density prior 
+2*scaling_parameters[16,3] + scaling_parameters[16,2]
+
+# cullhist prior
+3*scaling_parameters[19,3] + scaling_parameters[19,2]
 
 # Fig. 4: covariate effects badgers####
 # For this to work the code in the sett model script that obtains the non spatial evaluation of each covariate needs to have been run 
@@ -347,7 +386,7 @@ limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
                    fordist_df$q0.5, setts_df$q0.5, cull_df$q0.5))) * c(-1, 1)
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S3.pdf", 
-    width = 8, height = 8)
+    width = 12, height = 8)
 ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
@@ -408,29 +447,14 @@ plot_layout(ncol = 3)
 dev.off()
 
 
-# Fig. S4. Spatial effect of sett diribution ####
-limit <- max(abs(setts_df$q0.5)) * c(-1, 1)
 
-pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S4.pdf", 
-    width = 10, height = 8)
-
-ggplot() +
-  gg(data = setts_df, aes(fill = q0.5), geom = "tile") +
-  geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
-  theme_bw() +
-  scale_fill_distiller(palette = 'RdBu', limit = limit) +
-  labs(title = "Sett relative density", x = "", y = "", fill = "Mean") 
-
-dev.off()
-
-# Fig S5: spatial field ####
+# Fig S4: spatial field ####
 lp4 <- readRDS("Outputs/badgers_all_model/linear_predictor.RDS")
 
 inside = sapply(st_intersects(lp4$spfield_big, ireland_outline_sf), function(x){length(x)==0})
 spb <- lp4$spfield_big[!inside,]
 
-pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S5.pdf", 
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S4.pdf", 
     width = 12, height = 8)
 
 ggplot() + 
@@ -449,16 +473,74 @@ ggplot() +
 
 dev.off()
 
-# Fig. 6 GAM output ####
+# Fig. S7 Other gam outputs ####
 
 m1 <- readRDS("Outputs/gam_model.RDS")
 
-pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6.pdf", 
-    width = 10, height = 10)
-vis.gam(m1, view = c("B_DENSITY", "S_DENSITY"), theta = 40, n.grid = 50, 
-        type = "response", color = "terrain", xlab = "Badger density", 
-        ylab = "Sett density", zlab = "Effect")
+badgers_clean <- readRDS("Data/badgers_for_gam.RDS")
+badgers_clean <- badgers_clean %>% drop_na()
 
+resid_sp <- badgers_clean  %>% 
+  add_partial_residuals(m1) %>% 
+  select(x, y, resid = `s(B_DENSITY,S_DENSITY)`) %>% 
+  st_as_sf(coords = c("x", "y")) %>% 
+  st_set_crs(2157) %>% 
+  st_transform(st_crs(ireland_counties))
+
+sm_spatial <- smooth_estimates(m1)  %>% 
+  add_confint()  %>% 
+  filter(.smooth == "s(x,y)") %>% 
+  st_as_sf(coords = c("x", "y")) %>% 
+  st_set_crs(2157) %>% 
+  st_transform(st_crs(ireland_counties))
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S7.pdf", 
+    width = 15, height = 8)
+ggplot() + 
+  geom_sf(data = sm_spatial, aes(col = .estimate), shape = 15, size = 2.5) + 
+  geom_sf(data = ireland_counties, fill = NA) + 
+  geom_sf(data = resid_sp, aes(size = abs(resid)), alpha = 0.1) +
+  scale_color_distiller(palette = 'RdBu') +
+  scale_size(range = c(0, 2)) + 
+  theme_bw() + 
+
+draw(m1, select = "s(MONTH)") &
+  theme_bw() 
+dev.off()
+
+# Fig. 6 GAM output ####
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6a.pdf", 
+    width = 15, height = 8)
+draw(m1, select = "s(B_DENSITY,S_DENSITY)") + 
+  # coord_equal() + 
+  theme_bw() +
+  labs(title = "a)", x = "Badger density", y = "Sett density") 
+dev.off()
+
+
+resid <- badgers_clean  %>% 
+  add_partial_residuals(m1) %>% 
+  select(GROUP_SIZE, resid = `s(GROUP_SIZE)`)
+
+sm <- smooth_estimates(m1)  %>% 
+  add_confint()  %>% 
+  filter(.smooth == "s(GROUP_SIZE)")
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6b.pdf", 
+    width = 12, height = 6)
+ggplot(sm) +
+  geom_rug(aes(x = GROUP_SIZE),
+           sides = "b") +
+  geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci, x = GROUP_SIZE),
+              alpha = 0.2) +
+  geom_line(aes(x = GROUP_SIZE, y = .estimate), lwd = 1) +
+  # geom_point(data = resid,
+  #   aes(x = GROUP_SIZE, y = resid,
+  #     colour = GROUP_SIZE), # <-- map fac to colour aesthetic
+  #     cex = 1.5)
+  labs(y = "Partial effect", x = "Group size", title = "b)") + 
+  theme_bw()
 dev.off()
 
 # Fig. 7 Group size ####
@@ -489,6 +571,7 @@ badger_pred2 <- badger_pred %>%
 
 badger_rast <- rast(badger_pred2, type="xyz", crs = crs(sett_pred))
 
+summary(sett)
 group_size <- badger_rast/sett_rast
 
 group_size_df <- as.data.frame(group_size, xy = T)
@@ -505,3 +588,6 @@ ggplot() +
   scale_fill_viridis_c(option = "D") + 
   theme_bw()
 dev.off()
+
+
+
