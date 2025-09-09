@@ -265,7 +265,8 @@ cull_kde <- sf.kde.new(
   ref = env_vars$elevation,
   # res = res(env_vars$elevation),
   standardize = FALSE,
-  scale.factor = 10000,
+  # scale.factor = 10000,
+  scale.factor = 1,
   mask = F)
 
 ggplot() + 
@@ -283,6 +284,6 @@ cull_kde_m <- mask(cull_kde, ROI)
 
 plot(cull_kde_m)
 
-writeRaster(cull_kde_m, "Data/Covars/culling_history.grd", overwrite = T) 
+writeRaster(cull_kde_m, "Data/Covars/culling_history_unscaled.grd", overwrite = T) 
 
-saveRDS(cull_kde_m, file = "Data/Covars/culling_history.RDS")
+saveRDS(cull_kde_m, file = "Data/Covars/culling_history_unscaled.RDS")
