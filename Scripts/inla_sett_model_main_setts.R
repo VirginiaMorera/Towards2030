@@ -76,6 +76,7 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
                                 max(elevation[], na.rm = T)+1, 
                                 length.out = 20),
                             degree = 2)
+mapper_elev <- bru_mapper(mesh1D_elev, indexed = FALSE)
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
@@ -87,6 +88,7 @@ mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1,
                                  max(slope[], na.rm = T)+1, 
                                  length.out = 20), 
                              degree = 2) 
+mapper_slope <- bru_mapper(mesh1D_slope, indexed = FALSE)
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
@@ -99,6 +101,7 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
                                      max(grasslandsPastures[], na.rm = T)+1,
                                      length.out = 20),
                                  degree = 2)
+mapper_grassPast <- bru_mapper(mesh1D_grassPast, indexed = FALSE)
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
@@ -111,6 +114,7 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
                                        max(forestDist[], na.rm = T)+1,
                                        length.out = 20),
                                    degree = 2)
+mapper_distForests <- bru_mapper(mesh1D_distForests, indexed = FALSE)
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
@@ -122,6 +126,7 @@ mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
                                 max(topo_wetness[], na.rm = T)+1,
                                 length.out = 20),
                             degree = 2)
+mapper_topo <- bru_mapper(mesh1D_topo, indexed = FALSE)
 
 diff(range(topo_wetness[], na.rm = T))/3
 matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
@@ -134,6 +139,7 @@ mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
                                max(human_footprint[], na.rm = T)+1,
                                length.out = 20),
                            degree = 2)
+mapper_hfi <- bru_mapper(mesh1D_hfi, indexed = FALSE)
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
@@ -148,16 +154,21 @@ matern2D_big <- inla.spde2.pcmatern(mesh,
                                     # alpha = 3/2,
                                     prior.range = c(100, 0.01),  #1/3 y coordinate 90
                                     prior.sigma = c(0.01, NA)) #0.02 at p 0.1 works
-
 ## Formula ####
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   Eff.elevation(elevation, model = matern1D_elev) +
+  # Eff.elevation(elevation, model = "rw2", mapper = mapper_elev) +
   Eff.slope(slope, model = matern1D_slope) +
+  # Eff.slope(slope, model = "rw2", mapper = mapper_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
+  # Eff.grassPast(grasslandsPastures, model = "rw2", mapper = mapper_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  # Eff.topo(topo_wetness, model = matern1D_topo) +
+  # Eff.forestdist(forestDist, model = "rw2", mapper = mapper_distForests) +
+  Eff.topo(topo_wetness, model = matern1D_topo) +
+  # Eff.topo(topo_wetness, model = "rw2", mapper = mapper_topo) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
+  # Eff.hfi(human_footprint, model = "rw2", mapper = mapper_hfi) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
 
@@ -565,7 +576,7 @@ multiplot(
   
   eval.slope,
   eval.forestdist,
-  eval.topo,
+  # eval.topo,
   cols = 2 
 )
 
