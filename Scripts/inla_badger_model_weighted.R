@@ -9,14 +9,11 @@ bru_options_set(bru_verbose = FALSE,
 # Preparation of data ####
 
 ## load sett data and covariates ####
-badgers_all <- readRDS("Data/badgers_jittered_filtered_2025.RDS") %>% 
+badgers_all <- readRDS("Data/badgers_thinned.RDS") %>% 
   st_transform(crs = projKM) 
 
-# badger_subset <- badgers_all %>% 
-#   filter(YEAR > 2018)
-
 env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
-ch <- readRDS("Data/Covars/culling_history.RDS")
+ch <- readRDS("Data/Covars/culling_history_unscaled.RDS")
 ch <- project(ch, crs(env_vars))
 env_vars$forest_distances <- env_vars$forest_distances/1000
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
@@ -83,17 +80,19 @@ mesh1D_elev <- inla.mesh.1d(seq(min(elevation[], na.rm = T)-1,
                                 max(elevation[], na.rm = T)+1, 
                                 length.out = 10),
                             degree = 2)
+mapper_elev <- bru_mapper(mesh1D_elev, indexed = FALSE)
 
 diff(range(elevation[], na.rm = T))/3
 matern1D_elev <- inla.spde2.pcmatern(mesh1D_elev,
-                                     prior.range = c(5, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.1, 0.1))
+                                     prior.range = c(4, 0.1), # 1 third range mesh
+                                     prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for slope ####
 mesh1D_slope <- inla.mesh.1d(seq(min(slope[], na.rm = T)-1, 
                                  max(slope[], na.rm = T)+1, 
                                  length.out = 10), 
                              degree = 2) 
+mapper_slope <- bru_mapper(mesh1D_slope, indexed = FALSE)
 
 diff(range(slope[], na.rm = T))/3
 matern1D_slope <- inla.spde2.pcmatern(mesh1D_slope,
@@ -106,11 +105,12 @@ mesh1D_grassPast <- inla.mesh.1d(seq(min(grasslandsPastures[], na.rm = T)-1,
                                      max(grasslandsPastures[], na.rm = T)+1,
                                      length.out = 10),
                                  degree = 2)
+mapper_grassPast <- bru_mapper(mesh1D_grassPast, indexed = FALSE)
 
 diff(range(grasslandsPastures[], na.rm = T))/3
 matern1D_grassPast <- inla.spde2.pcmatern(mesh1D_grassPast,
                                           prior.range = c(1, 0.1), # 1 third range mesh
-                                          prior.sigma = c(1, 0.1))
+                                          prior.sigma = c(0.5, 0.1))
 
 
 ### 1d mesh for distance to forests ####
@@ -118,33 +118,23 @@ mesh1D_distForests <- inla.mesh.1d(seq(min(forestDist[], na.rm = T)-1,
                                        max(forestDist[], na.rm = T)+1,
                                        length.out = 10),
                                    degree = 2)
+mapper_distForests <- bru_mapper(mesh1D_distForests, indexed = FALSE)
 
 diff(range(forestDist[], na.rm = T))/3
 matern1D_distForests <- inla.spde2.pcmatern(mesh1D_distForests,
                                             prior.range = c(2, 0.1), # 1 third range mesh
-                                            prior.sigma = c(0.1, 0.1))
-
-### 1d mesh for topographic wetness index ####
-mesh1D_topo <- inla.mesh.1d(seq(min(topo_wetness[], na.rm = T)-1,
-                                max(topo_wetness[], na.rm = T)+1,
-                                length.out = 10),
-                            degree = 2)
-
-diff(range(topo_wetness[], na.rm = T))/3
-matern1D_topo <- inla.spde2.pcmatern(mesh1D_topo,
-                                     prior.range = c(1, 0.1), # 1 third range mesh
-                                     prior.sigma = c(0.1, 0.1))
-
+                                            prior.sigma = c(0.2, 0.1))
 
 ### 1d mesh for human footprint index ####
 mesh1D_hfi <- inla.mesh.1d(seq(min(human_footprint[], na.rm = T)-1,
                                max(human_footprint[], na.rm = T)+1,
                                length.out = 10),
                            degree = 2)
+mapper_hfi <- bru_mapper(mesh1D_hfi, indexed = FALSE)
 
 diff(range(human_footprint[], na.rm = T))/3
 matern1D_hfi <- inla.spde2.pcmatern(mesh1D_hfi,
-                                    prior.range = c(1, 0.1), # 1 third range mesh
+                                    prior.range = c(4, 0.1), # 1 third range mesh
                                     prior.sigma = c(1, 0.1))
 
 ### 1d mesh for sett distribution ####
@@ -152,22 +142,25 @@ mesh1D_sett <- inla.mesh.1d(seq(min(setts[], na.rm = T)-1,
                                 max(setts[], na.rm = T)+1,
                                 length.out = 10),
                             degree = 2)
+mapper_sett <- bru_mapper(mesh1D_sett, indexed = FALSE)
 
 diff(range(setts[], na.rm = T))/3
 matern1D_sett <- inla.spde2.pcmatern(mesh1D_sett,
                                      prior.range = c(2, 0.1), # 1 third range mesh
-                                     prior.sigma = c(1, 0.1))
+                                     prior.sigma = c(0.5, 0.1))
 
 ### 1d mesh for culling history ####
 mesh1D_cull <- inla.mesh.1d(seq(min(cull_hist[], na.rm = T)-1,
                                 max(cull_hist[], na.rm = T)+1,
                                 length.out = 10),
                             degree = 2)
+mapper_cull <- bru_mapper(mesh1D_cull, indexed = FALSE)
 
 diff(range(cull_hist[], na.rm = T))/3
 matern1D_cull <- inla.spde2.pcmatern(mesh1D_cull,
                                      prior.range = c(3, 0.1), # 1 third range mesh
                                      prior.sigma = c(0.8, 0.1))
+
 
 # M4 non-linear covar effects + spde ####
 
@@ -181,13 +174,19 @@ matern2D_big <- inla.spde2.pcmatern(mesh,
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   Eff.elevation(elevation, model = matern1D_elev) +
+  # Eff.elevation(elevation, model = "rw2", mapper = mapper_elev) +
   Eff.slope(slope, model = matern1D_slope) +
+  # Eff.slope(slope, model = "rw2", mapper = mapper_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
+  # Eff.grassPast(grasslandsPastures, model = "rw2", mapper = mapper_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  Eff.topo(topo_wetness, model = matern1D_topo) +
+  # Eff.forestdist(forestDist, model = "rw2", mapper = mapper_distForests) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
+  # Eff.hfi(human_footprint, model = "rw2", mapper = mapper_hfi) +
   Eff.sett(setts, model = matern1D_sett) +
+  # Eff.sett(setts, model = "rw2", mapper = mapper_sett) +
   Eff.cull(cull_hist, model = matern1D_cull) +
+  # Eff.cull(cull_hist, model = "rw2", mapper = mapper_cull) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
 
