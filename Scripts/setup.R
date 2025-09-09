@@ -24,7 +24,7 @@ library(mgcv)
 library(mgcViz)
 library(rgl)
 library(gstat)
-
+library(gratia)
 
 getmode <- function(v) {
   uniqv <- unique(v)
