@@ -122,14 +122,18 @@ rp4 <- readRDS("Outputs/sett_model/response_predictor.RDS")
 inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
 y <- rp4$all[!inside,]
 
+scale_values <- function(x){(x-min(x))/(max(x)-min(x))}
+y <- y %>% 
+  mutate(q0.5scaled = scale_values(q0.5))
+
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_3.pdf", 
     width = 12, height = 8)
 
 ggplot() + 
-  gg(data = y, aes(fill = q0.5), geom = "tile") +
+  gg(data = y, aes(fill = q0.5scaled), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
-  labs(x = "", y = "", fill = "Median", 
+  labs(x = "", y = "", fill = "Relative abundance", 
        title = "a)") +  
   theme_bw() + 
   scale_fill_viridis_c(option = "D") +
@@ -254,6 +258,7 @@ badger_sum <- readRDS("Outputs/badgers_all_model/m4_summary.RDS") %>%
   select(variable, parameter, median = `0.5quant`, lower = `0.025quant`, upper = `0.975quant`)
 
 scaling_parameters_clean <- scaling_parameters %>% 
+  bind_rows(scaling_parameters_ch) %>% 
   filter(names %in% c("elevation", "slope", "forest_distances", "GrasslandPastures",
                       "human_footprint_index", "setts", "cull_hist")) %>% 
   mutate(names = recode(names,  
@@ -296,7 +301,7 @@ write.csv(badger_sum_descaled, file = "Outputs/badgers_all_model/badgers_sum.csv
 2*scaling_parameters[16,3] + scaling_parameters[16,2]
 
 # cullhist prior
-3*scaling_parameters[19,3] + scaling_parameters[19,2]
+1.4*scaling_parameters[19,3] + scaling_parameters[19,2]
 
 # Fig. 4: covariate effects badgers####
 # For this to work the code in the sett model script that obtains the non spatial evaluation of each covariate needs to have been run 
@@ -321,8 +326,10 @@ rp4 <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
 inside = sapply(st_intersects(rp4$all, ireland_outline_sf), function(x){length(x)==0})
 y <- rp4$all[!inside,]
 
+scale_values <- function(x){(x-min(x))/(max(x)-min(x))}
 y <- y %>% 
-  mutate(IQ = q0.975 - q0.025) 
+  mutate(IQ = q0.975 - q0.025, 
+         q0.5scaled = scale_values(q0.5)) 
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_5.pdf", 
     width = 12, height = 8)
@@ -331,7 +338,7 @@ ggplot() +
   gg(data = y, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
   # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
-  labs(x = "", y = "", fill = "Median", 
+  labs(x = "", y = "", fill = "Relative abundance", 
        title = "a)") +  
   theme_bw() + 
   scale_fill_viridis_c(option = "D")+
