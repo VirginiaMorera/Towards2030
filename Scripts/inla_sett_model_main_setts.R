@@ -420,7 +420,7 @@ eval.elev <- ggplot(elev.pred) +
                                   quantile(elevation[], probs = 0.99, na.rm = T))) + 
     # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
     #                    limits = c(-1.5, 1.5)) + 
-    labs(x = "Elevation", y = "Effect") + 
+    labs(x = "Elevation (m)", y = "Effect") + 
     theme_bw()
 
 #### Slope ####
@@ -453,7 +453,7 @@ eval.slope <- ggplot(slope.pred) +
                                           length.out = 10)*100, 0), 
                        limits = c(min(env_vars_scaled$slope[], na.rm = T), 
                                   quantile(env_vars_scaled$slope[], 0.99, na.rm = T))) + 
-    labs(x = "Slope", y = "Effect") +
+    labs(x = "Slope (rad)", y = "Effect") +
     # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
     #                    limits = c(-1.5, 1.5)) + 
     theme_bw()
@@ -562,7 +562,7 @@ eval.forestdist <- ggplot(forestdist.pred) +
                                         length.out = 10), 0),
                      limits = c(min(forestDist[], na.rm = T),
                                 quantile(forestDist[], 0.99, na.rm = T))) +
-  labs(x = "Distance to forest edge", y = "Effect") +
+  labs(x = "Distance to forest edge (m)", y = "Effect") +
   # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
   #                    limits = c(-1.5, 1.5)) +
   theme_bw()
