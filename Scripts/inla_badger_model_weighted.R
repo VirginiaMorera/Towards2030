@@ -15,9 +15,11 @@ badgers_all <- readRDS("Data/badgers_thinned.RDS") %>%
 env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
 ch <- readRDS("Data/Covars/culling_history_unscaled.RDS")
 ch <- project(ch, crs(env_vars))
+ch[] <- scales::rescale(ch[], to=c(0,1))
 env_vars$forest_distances <- env_vars$forest_distances/1000
 env_vars$PeatbogsandMoors <- sum(env_vars$Peatbogs, env_vars$Moorsandheathland)
 env_vars$GrasslandPastures <- sum(env_vars$Naturalgrasslands, env_vars$Pastures)
+env_vars$setts[] <- scales::rescale(env_vars$setts[], to=c(0,1))
 
 env_vars_scaled <- terra::scale(env_vars)
 
@@ -158,7 +160,7 @@ mapper_cull <- bru_mapper(mesh1D_cull, indexed = FALSE)
 
 diff(range(cull_hist[], na.rm = T))/3
 matern1D_cull <- inla.spde2.pcmatern(mesh1D_cull,
-                                     prior.range = c(3, 0.1), # 1 third range mesh
+                                     prior.range = c(1.4, 0.1), # 1 third range mesh
                                      prior.sigma = c(0.8, 0.1))
 
 
@@ -226,7 +228,7 @@ lp4 <- predict(
       Eff.slope +
       Eff.grassPast +
       Eff.hfi +
-      Eff.topo +
+      # Eff.topo +
       Eff.forestdist +
       Eff.sett + 
       Eff.cull + 
@@ -247,7 +249,7 @@ rp4 <- predict(
                 Eff.slope +
                 Eff.grassPast +
                 Eff.hfi +
-                Eff.topo +
+                # Eff.topo +
                 Eff.sett + 
                 Eff.forestdist +
                 Eff.cull + 
@@ -461,7 +463,7 @@ eval.elev <- ggplot(elev.pred) +
                                 quantile(elevation[], probs = 0.99, na.rm = T))) + 
   # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7),
   #                    limits = c(-1.5, 1.5)) + 
-  labs(x = "Elevation", y = "Effect") + 
+  labs(x = "Elevation (m)", y = "Effect") + 
   theme_bw()
 
 #### Slope ####
@@ -494,7 +496,7 @@ eval.slope <- ggplot(slope.pred) +
                                         length.out = 10)*100, 0), 
                      limits = c(min(env_vars_scaled$slope[], na.rm = T), 
                                 quantile(env_vars_scaled$slope[], 0.99, na.rm = T))) + 
-  labs(x = "Slope", y = "Effect") +
+  labs(x = "Slope (rad)", y = "Effect") +
   # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
   #                    limits = c(-1.5, 1.5)) + 
   theme_bw()
@@ -605,7 +607,7 @@ eval.forestDist <- ggplot(forestDist.pred) +
                                         length.out = 10), 0), 
                      limits = c(quantile(forestDist[], 0.001, na.rm = T), 
                                 quantile(forestDist[], 0.99, na.rm = T))) + 
-  labs(x = "Distance to forest edge", y = "Effect") +
+  labs(x = "Distance to forest edge (m)", y = "Effect") +
   # scale_y_continuous(breaks = seq(-1.5, 1.5, length.out = 7), 
   #                    limits = c(-1.5, 1.5)) + 
   theme_bw()
