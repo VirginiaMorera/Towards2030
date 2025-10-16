@@ -301,7 +301,7 @@ write.csv(badger_sum_descaled, file = "Outputs/badgers_all_model/badgers_sum.csv
 2*scaling_parameters[16,3] + scaling_parameters[16,2]
 
 # cullhist prior
-1.4*scaling_parameters[19,3] + scaling_parameters[19,2]
+1.4*scaling_parameters[17,3] + scaling_parameters[17,2]
 
 # Fig. 4: covariate effects badgers####
 # For this to work the code in the sett model script that obtains the non spatial evaluation of each covariate needs to have been run 
