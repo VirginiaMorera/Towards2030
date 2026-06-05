@@ -1,12 +1,11 @@
-# 0. house keeping ####
+# House keeping ####
 rm(list = ls())
 source("Scripts/setup.R")
 
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS") %>% 
   st_transform(crs = projKM)
-# 1. Clean badger dataset ####
 
-# badgers_all <- readRDS("Data/badgers_jittered_filtered_2025.RDS") 
+# Clean badger dataset ####
 
 badgers_all <- readRDS("Data/badgers_setts_2025.RDS")
 
@@ -49,9 +48,11 @@ badgers_clean %>%
 badgers_clean <- badgers_clean %>% 
   select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE, MONTH, PROGRAMME) 
 
+# Obtain model predictions ####
 
-# 2. Extract model predictions ####
+## Setts ####
 
+### Rasterize ####
 sett_pred <- readRDS("Outputs/sett_model/response_predictor.RDS")
 
 inside = sapply(st_intersects(sett_pred$all, ireland_outline_sf), function(x){length(x)==0})
@@ -59,7 +60,8 @@ sett_pred <- sett_pred$all[!inside,]
 
 sett_pred2 <- sett_pred %>% 
   mutate(x = st_coordinates(.)[,1], 
-         y = st_coordinates(.)[,2]) %>% 
+         y = st_coordinates(.)[,2], 
+         q0.5scaled = scale01(q0.5)) %>% 
   select(x, y, z = q0.5) %>% 
   st_drop_geometry()
   
@@ -67,9 +69,12 @@ sett_rast <- rast(sett_pred2, type="xyz", crs = crs(sett_pred))
 
 plot(sett_rast)
 
+### Extract ####
 locs_sett <- terra::extract(sett_rast, badgers_clean)
 
+## Badgers ####
 
+### Rasterize ####
 badger_pred <- readRDS("Outputs/badgers_all_model/response_predictor.RDS")
 
 inside = sapply(st_intersects(badger_pred$all, ireland_outline_sf), function(x){length(x)==0})
@@ -77,7 +82,8 @@ badger_pred <- badger_pred$all[!inside,]
 
 badger_pred2 <- badger_pred %>% 
   mutate(x = st_coordinates(.)[,1], 
-         y = st_coordinates(.)[,2]) %>% 
+         y = st_coordinates(.)[,2], 
+         q0.5scaled = scale_values(q0.5)) %>% 
   select(x, y, z = q0.5) %>% 
   st_drop_geometry()
 
@@ -85,47 +91,40 @@ badger_rast <- rast(badger_pred2, type="xyz", crs = crs(sett_pred))
 
 plot(badger_rast)
 
+### Extract ####
 locs_badger <- extract(badger_rast, badgers_clean)
 
-group_rast <- badger_rast/sett_rast
+## Badgers per sett ####
 
+group_rast <- badger_rast/sett_rast
 locs_group <- extract(group_rast, badgers_clean)
 
+
+# Organise dataset for GAM ####
 badgers_clean <- badgers_clean %>% 
   mutate(B_DENSITY = locs_badger$z,
          S_DENSITY = locs_sett$z,
-         GROUP_SIZE = locs_group$z,
+         BADGER_SETT_RATIO = locs_group$z,
          x = st_coordinates(.)[,1],
          y = st_coordinates(.)[,2],
          SEX = as.factor(SEX)) %>%
-  select(WEIGHT, MONTH, B_DENSITY, S_DENSITY, GROUP_SIZE, x, y, SEX, PROGRAMME) %>%
+  select(WEIGHT, MONTH, B_DENSITY, S_DENSITY, BADGER_SETT_RATIO, x, y, SEX, PROGRAMME) %>%
   mutate(MONTH = as.numeric(MONTH), 
          PROGRAMME = as.factor(PROGRAMME)) %>% 
   st_drop_geometry() %>%
   as.data.frame()
 
-str(badgers_clean)
-
-
-names(badgers_clean)
-
-badgers_clean %>% 
-  group_by(SEX, PROGRAMME) %>% 
-  summarise(mean = mean(WEIGHT), 
-            sd = sd(WEIGHT))
-
 # saveRDS(badgers_clean, file = "Data/badgers_for_gam.RDS")
 
-# 3. GAM ####
-
-# badgers_clean_1 <- readRDS("Data/badgers_for_gam.RDS")
+# GAM ####
 
 badgers_clean <- badgers_clean %>% drop_na()
 
+## run model ####
 m1 <- gam(formula = WEIGHT ~ s(MONTH, bs = "cc", k = 12) + 
             s(B_DENSITY, S_DENSITY, k = 15) +
-            s(GROUP_SIZE, k = 9) +
-            s(x, y, k = 29) +
+            s(BADGER_SETT_RATIO, k = 9) +
+            s(x, y, k = 15) +
             # B_DENSITY + S_DENSITY + 
             # PROGRAMME +
             SEX, 
@@ -155,7 +154,7 @@ draw(m1)
 draw(parametric_effects(m1))
 
 
-# add partial residuals to data
+# add partial residuals to data 
 badgers_clean <- badgers_clean  %>% 
   add_partial_residuals(m1)
 
@@ -196,3 +195,4 @@ ggplot() +
 
 draw(m1, select = "s(B_DENSITY,S_DENSITY)") + 
   theme_bw() + coord_equal()
+
