@@ -480,6 +480,29 @@ ggplot() +
 
 dev.off()
 
+
+# Fig. S5 Gam check plots ####
+
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S5.pdf", 
+    width = 12, height = 8)
+appraise(m1)
+dev.off()
+
+
+# Fig. S6 Semivariogram ####
+
+## evaluate model ####
+residuals_m1 <- residuals(m1)
+spatial_data <- data.frame(x = badgers_clean$x, y = badgers_clean$y, residuals = residuals_m1)
+spatial_data <- spatial_data %>% 
+  st_as_sf(coords = c("x", "y"))
+variogram_obj <- variogram(residuals ~ 1, data = spatial_data)
+pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_S6.pdf", 
+    width = 10, height = 6)
+plot(variogram_obj, main = "Empirical Variogram of GAM Residuals")
+dev.off()
+
+
 # Fig. S7 Other gam outputs ####
 
 m1 <- readRDS("Outputs/gam_model.RDS")
@@ -518,7 +541,7 @@ dev.off()
 # Fig. 6 GAM output ####
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6a.pdf", 
-    width = 15, height = 8)
+    width = 12, height = 8)
 draw(m1, select = "s(B_DENSITY,S_DENSITY)") + 
   # coord_equal() + 
   theme_bw() +
@@ -528,25 +551,25 @@ dev.off()
 
 resid <- badgers_clean  %>% 
   add_partial_residuals(m1) %>% 
-  select(GROUP_SIZE, resid = `s(GROUP_SIZE)`)
+  select(BADGER_SETT_RATIO, resid = `s(BADGER_SETT_RATIO)`)
 
 sm <- smooth_estimates(m1)  %>% 
   add_confint()  %>% 
-  filter(.smooth == "s(GROUP_SIZE)")
+  filter(.smooth == "s(BADGER_SETT_RATIO)")
 
 pdf(file = "C:/Users/morer/Dropbox/Virginia_post_UB/05_Badgers/Draft/MS_Figures/Fig_6b.pdf", 
     width = 12, height = 6)
 ggplot(sm) +
-  geom_rug(aes(x = GROUP_SIZE),
+  geom_rug(aes(x = BADGER_SETT_RATIO),
            sides = "b") +
-  geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci, x = GROUP_SIZE),
+  geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci, x = BADGER_SETT_RATIO),
               alpha = 0.2) +
-  geom_line(aes(x = GROUP_SIZE, y = .estimate), lwd = 1) +
+  geom_line(aes(x = BADGER_SETT_RATIO, y = .estimate), lwd = 1) +
   # geom_point(data = resid,
   #   aes(x = GROUP_SIZE, y = resid,
   #     colour = GROUP_SIZE), # <-- map fac to colour aesthetic
   #     cex = 1.5)
-  labs(y = "Partial effect", x = "Group size", title = "b)") + 
+  labs(y = "Partial effect", x = "Badger/sett ratio", title = "b)") + 
   theme_bw()
 dev.off()
 
@@ -559,7 +582,8 @@ sett_pred <- sett_pred$all[!inside,]
 
 sett_pred2 <- sett_pred %>% 
   mutate(x = st_coordinates(.)[,1], 
-         y = st_coordinates(.)[,2]) %>% 
+         y = st_coordinates(.)[,2], 
+         q0.5scaled = scale_values(q0.5)) %>% 
   select(x, y, z = q0.5) %>% 
   st_drop_geometry()
 
@@ -572,16 +596,17 @@ badger_pred <- badger_pred$all[!inside,]
 
 badger_pred2 <- badger_pred %>% 
   mutate(x = st_coordinates(.)[,1], 
-         y = st_coordinates(.)[,2]) %>% 
+         y = st_coordinates(.)[,2], 
+         q0.5scaled = scale_values(q0.5))%>% 
   select(x, y, z = q0.5) %>% 
   st_drop_geometry()
 
 badger_rast <- rast(badger_pred2, type="xyz", crs = crs(sett_pred))
 
-summary(sett)
 group_size <- badger_rast/sett_rast
 
-group_size_df <- as.data.frame(group_size, xy = T)
+group_size_df <- as.data.frame(group_size, xy = T) %>% 
+  filter(z<21)
 
 group_size_sf <- st_as_sf(group_size_df, coords = c("x", "y"), 
                           crs = st_crs(ireland_counties))
