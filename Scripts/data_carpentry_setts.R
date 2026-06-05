@@ -1,3 +1,4 @@
+# Housekeeping ####
 rm(list = ls())
 source("Scripts/setup.R")
 ireland <- st_read("Data/Other/ireland_ITM.shp")
@@ -6,10 +7,12 @@ ireland <- st_read("Data/Other/ireland_ITM.shp")
 # Sett database ####
 # this contains all setts ever found, environmental info, and date they were first found
 
-## load sett database ####
+## load database ####
+
 sett <- read_xlsx("Data/Raw/TBL_SETT_RECORD_2025.xlsx")
 
-## clean sett database ####
+## clean database ####
+
 sett_clean <- sett %>% 
   # remove unnecessary or empty variables
   dplyr::select(
@@ -60,7 +63,7 @@ attributes(sett_clean$y_coordinate) <- NULL
 
 ggplot() + 
   geom_sf(data = ireland) + 
-  geom_sf(data = sett_clean) + 
+  geom_sf(data = sett_clean, size = 0.5) + 
   theme_bw()
 
 #remove weird point out at sea
@@ -71,12 +74,12 @@ sett_clean <- sett_clean %>%
   select(-Lon) 
 
 
-# saveRDS(sett_clean, file = "Data/sett_all_2025.RDS")
-sett_all <- readRDS("Data/sett_all_2025.RDS")
+saveRDS(sett_clean, file = "Data/sett_all_2025.RDS")
+# sett_all <- readRDS("Data/sett_all_2025.RDS")
 
 ## Visualise sett database ####
 
-## main setts
+### main setts ####
 sett_all %>% 
   distinct(SETT_ID, .keep_all = T) %>% 
   ggplot +
@@ -87,15 +90,13 @@ sett_all %>%
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
 
-## setts by year 
+### setts by year ####
 
 ggplot(sett_all) +
   geom_bar(aes(x = YEAR_FOUND, fill = MAIN_SETT), stat = "count") + 
   theme_bw()
 
-# some areas have not been sampled. Are there no setts? or no farms? 
-
-## active setts 
+### active setts ####
 sett_all %>% 
   distinct(SETT_ID, .keep_all = T) %>% 
   ggplot + 
@@ -107,7 +108,7 @@ sett_all %>%
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
 
 
-## number of restrains
+### number of restrains ####
 sett_all %>% 
   filter(RESTRAINTS < 40 & RESTRAINTS > 0) %>%
   ggplot +
@@ -119,7 +120,7 @@ sett_all %>%
   guides(col = guide_legend(override.aes = list(size=1.5, alpha = 1)))
 
 
-## number of badgers
+### number of badgers ####
 ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray") +  
@@ -129,12 +130,10 @@ ggplot(sett_all) +
   labs(x = "Longitude", y = "Latitude", col = "Number of badgers") + 
   theme_bw() + 
   guides(col = guide_legend(override.aes = list(alpha = 1)))
-# we don't really know what this data is at all
 
-
-## habitats
+### habitats ####
 sett_all %>%
-  pivot_longer(GREENFIELD_SITE:SCRUB, names_to = "Habitat_type", 
+  pivot_longer(HEDGEROW:GREENFIELD_SITE, names_to = "Habitat_type", 
                values_to = "Habitat_presence") %>%
   filter(!is.na(Habitat_presence)) %>%
   ggplot +
@@ -150,9 +149,9 @@ img = readPNG("Outputs/habitat_plot.png")
 grid::grid.raster(img)
 
 
-#### visualise setts by year ####
+## visualise setts by year found ####
 
-## before 2000
+### before 2000 ####
 p1 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
@@ -164,9 +163,7 @@ p1 <- ggplot(sett_all) +
   guides(col = guide_legend(override.aes = list(alpha = 1))) + 
   ggtitle("Before 2000")
 
-# these can very clearly be removed
-
-## 2000 - 2005
+### 2000 - 2005 ####
 p2 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
@@ -180,7 +177,7 @@ p2 <- ggplot(sett_all) +
 
 # until 2005 all year info comes from the sett dataset (so no issue with data entering dates)
 
-## 2005 - 2010
+### 2005 - 2010 ####
 p3 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
@@ -192,7 +189,7 @@ p3 <- ggplot(sett_all) +
   guides(col = guide_legend(override.aes = list(alpha = 1))) + 
   ggtitle("2005 - 2010")
 
-## 2010 - 2015
+### 2010 - 2015 ####
 p4 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
@@ -204,7 +201,7 @@ p4 <- ggplot(sett_all) +
   guides(col = guide_legend(override.aes = list(alpha = 1))) + 
   ggtitle("2010 - 2015")
 
-## 2015 - 2020
+### 2015 - 2020 ####
 p5 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
@@ -216,7 +213,7 @@ p5 <- ggplot(sett_all) +
   guides(col = guide_legend(override.aes = list(alpha = 1))) + 
   ggtitle("2015 - 2020")
 
-## after 2020
+### after 2020 ####
 p6 <- ggplot(sett_all) +
   geom_sf(data = ireland, col = "darkgray", fill = "lightgray") +
   geom_sf(col = "darkgray", size = 0.5) +  
