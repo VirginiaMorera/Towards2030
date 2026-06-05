@@ -1,13 +1,12 @@
+# Housekeeping ####
 rm(list = ls())
 source("Scripts/setup.R")
 
 ireland <- st_read("Data/Other/ireland_ITM.shp")
 
-# Load and clean badger individual data ####
+# Culling programme badgers ####
 
-## Culling programme badgers ####
-
-### Load and clean badger data ####
+## Load and clean badger data ####
 badgers <- read_xlsx("Data/Raw/TBL_CAPTURED_BADGERS_2025.xlsx")
 
 # remove unnecessary columns and clean
@@ -28,13 +27,13 @@ badgers_clean <- badgers %>%
          # turn weight into NA if it's 0
          WEIGHT = na_if(WEIGHT, 0))
 
-### Load and clean capture block event data ####
+## Load and clean capture block event data ####
 capture_events <- read_xlsx("Data/Raw/TBL_CAPTURE_EVENTS_2025.xlsx")
 
 capture_events %<>%
   select(CAPTURE_BLOCK_EVENT, DATE_COMMENCED, DATE_COMPLETED, TOTAL_BADGERS)
 
-### Add capture dates to badger data and clean mistakes ####
+## Add capture dates to badger data and clean mistakes ####
 badgers_clean_with_date <- badgers_clean %>% 
   left_join(capture_events) 
 
@@ -59,9 +58,9 @@ c_badgers <- badgers_clean_with_date %>%
     BADGER_STATUS = "Culled") %>% 
   filter(!is.na(DATE))
   
-## Vaccination programme badgers ####
+# Vaccination programme badgers ####
 
-### Load and clean badger data ####
+## Load and clean badger data ####
 
 badgers_vacc <- read_xlsx("Data/Raw/TBL_VACC_BADGERS_2025.xlsx")
 
@@ -110,7 +109,7 @@ v_badgers <- badgers_vacc %>%
   filter(!is.na(DATE))
 
 
-## Put everything together ####
+# Put everything together ####
 badgers_all <- bind_rows(c_badgers, v_badgers) %>% 
   select(SETT_ID, BADGER_ID, AGE, WEIGHT, SEX, DATE, 
          CAPTURE_BLOCK_EVENT, PROGRAMME, BADGER_ACTION) %>% 
@@ -136,9 +135,11 @@ badgers_all <- badgers_all %>%
 
 saveRDS(badgers_all, file = "Data/badgers_all_2025.RDS")
 
+# badgers_all <- readRDS("Data/badgers_all_2025.RDS")
+
 # Visualise badger data ####
 
-# Date captured
+## Date captured ####
 ggplot(badgers_all) + 
   geom_bar(aes(x = DATE, fill = MONTH, group = MONTH)) + 
   scale_x_date(date_breaks = "1 year",date_labels = "%Y") + 
@@ -156,7 +157,7 @@ ggplot(badgers_all) +
   ggtitle("Date of capture")
 
 
-# weight histogram
+## Weight histogram ####
 badgers_all %>% 
   filter(WEIGHT < 20) %>%
   ggplot + 
@@ -164,7 +165,7 @@ badgers_all %>%
   facet_wrap(~SEX) + 
   theme_bw()
 
-# weight by month
+## Weight by month ####
 badgers_all %>% 
   filter(WEIGHT < 20) %>% 
   ggplot + 
@@ -182,7 +183,7 @@ badgers_all %>%
   facet_wrap(~SEX) + 
   ggtitle("Weight by month")
 
-#programme
+## Programme ####
 badgers_all %>% 
   ggplot + 
   geom_bar(aes(x = YEAR, fill = PROGRAMME), stat = "count") + 
