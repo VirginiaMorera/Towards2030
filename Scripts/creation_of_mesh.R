@@ -1,15 +1,16 @@
 rm(list = ls())
 source("Scripts/setup.R")
 
-#### Preparation ####
+# Preparation ####
 
-### Load map of ireland to use as boundary, and point data to check they're inside the boundary
+## Load map of ireland and point data ####
 ireland <- st_read("Data/Other/ireland_ITM.shp")
 sett_all <- readRDS("Data/sett_all_2023.RDS")
 ireland %<>% st_transform(crs = projKM)
 sett_all %<>% st_transform(crs = projKM)
 
-### create boundary simplifying map of ireland
+## create boundary simplifying map of ireland ####
+
 boundary <- ireland %>% 
   mutate(Country = "Ireland") %>% 
   group_by(Country) %>%
@@ -18,12 +19,12 @@ boundary <- ireland %>%
   st_simplify(dTolerance = 20) %>% # simplify border otherwise triangles in the edge will be too small  
   st_buffer(dist = 20) # buffer to avoid complicated coastline
 
-### Buffer the inner boundary by 200 km more to create outer boundary
+## Buffer the inner boundary by 200 km more to create outer boundary ####
 
 boundary2 <- boundary %>% 
   st_buffer(dist = 200)
 
-### Plot to check what we've got
+## Plot to check what we've got ####
 
 ggplot(boundary) +
   geom_sf(data = boundary2, col = "red", fill = NA) +
@@ -32,15 +33,16 @@ ggplot(boundary) +
   geom_sf(data = sett_all, size = 0.5, alpha = 0.5) +
   theme_bw()          
 
-#### Creation of mesh ####
+# Creation of mesh ####
+
+## Initial (20km) mesh ####
 
 meshes = list()
 meshes[[1]] =  fm_mesh_2d_inla(boundary = list(boundary, boundary2),
                                max.edge = c(20,100), cutoff = 20, crs = projKM)
-# meshes[[1]] <- mesh_20k
-
 ggplot() + gg(meshes[[1]]) + coord_equal()
 
+## Subdivide 5 times ####
 n_meshes = 5
 
 for(i in 2:n_meshes) {
@@ -59,7 +61,9 @@ p4 <- ggplot() + gg(meshes[[4]]) + coord_equal()
 
 gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2)
 
-# Samplers for setts with log effort ####
+# Obtain int points from meshes ####
+
+## Samplers for setts with log effort ####
 
 log_samplers <- readRDS("Data/Inla/log_weightedSampler.RDS")
 
@@ -85,7 +89,7 @@ ggplot(log_int_points4) +
   geom_sf(aes(col = weight), size = 1) + 
   theme_bw()
 
-# Samplers for setts with log effort ####
+## Samplers for setts with log effort ####
 
 samplers <- readRDS("Data/Inla/weightedSampler.RDS")
 
