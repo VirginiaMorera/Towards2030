@@ -3,7 +3,6 @@ rm(list = ls())
 source("Scripts/setup.R")
 
 bru_options_set(bru_verbose = FALSE,
-                # control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
                 control.inla = list(int.strategy="auto"))
 
 # Preparation of data ####
@@ -176,19 +175,12 @@ matern2D_big <- inla.spde2.pcmatern(mesh,
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   Eff.elevation(elevation, model = matern1D_elev) +
-  # Eff.elevation(elevation, model = "rw2", mapper = mapper_elev) +
   Eff.slope(slope, model = matern1D_slope) +
-  # Eff.slope(slope, model = "rw2", mapper = mapper_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
-  # Eff.grassPast(grasslandsPastures, model = "rw2", mapper = mapper_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  # Eff.forestdist(forestDist, model = "rw2", mapper = mapper_distForests) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
-  # Eff.hfi(human_footprint, model = "rw2", mapper = mapper_hfi) +
   Eff.sett(setts, model = matern1D_sett) +
-  # Eff.sett(setts, model = "rw2", mapper = mapper_sett) +
   Eff.cull(cull_hist, model = matern1D_cull) +
-  # Eff.cull(cull_hist, model = "rw2", mapper = mapper_cull) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
 
@@ -228,7 +220,6 @@ lp4 <- predict(
       Eff.slope +
       Eff.grassPast +
       Eff.hfi +
-      # Eff.topo +
       Eff.forestdist +
       Eff.sett + 
       Eff.cull + 
@@ -249,7 +240,6 @@ rp4 <- predict(
                 Eff.slope +
                 Eff.grassPast +
                 Eff.hfi +
-                # Eff.topo +
                 Eff.sett + 
                 Eff.forestdist +
                 Eff.cull + 
@@ -271,7 +261,6 @@ x <- lp4$all[!inside,]
 ggplot() + 
   gg(data = x, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
   labs(x = "", y = "", fill = "Median", 
        title = "Badger distribution (linear scale)") +  
   theme_bw() + 
@@ -281,7 +270,6 @@ ggplot() +
 ggplot() + 
   gg(data = x, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "95% CI", 
        title = "Badger distribution uncertainty") +  
   theme_bw() + 
@@ -311,7 +299,6 @@ y <- rp4$all[!inside,]
 ggplot() + 
   gg(data = y, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "Median", 
        title = "Badger distribution (response scale)") +  
   theme_bw() + 
@@ -321,7 +308,6 @@ ggplot() +
   ggplot() + 
   gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "Median", 
        title = "Badger distribution uncertainty") +  
   theme_bw() + 
@@ -364,7 +350,6 @@ limit <- max(abs(c(elev_df$q0.5, slope_df$q0.5, grass_df$q0.5, hfi_df$q0.5,
 ggplot() +
   gg(data = elev_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Elevation", x = "", y = "", fill = "Mean") +
@@ -372,7 +357,6 @@ ggplot() +
 ggplot() +
   gg(data = slope_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Slope", x = "", y = "", fill = "Mean") +
@@ -380,7 +364,6 @@ ggplot() +
 ggplot() +
   gg(data = grass_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Grasslands and pastures", x = "", y = "", fill = "Mean") +
@@ -388,7 +371,6 @@ ggplot() +
 ggplot() +
   gg(data = hfi_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Human footprint index", x = "", y = "", fill = "Mean") +
@@ -396,7 +378,6 @@ ggplot() +
 ggplot() +
   gg(data = fordist_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Distance to the forest edge", x = "", y = "", fill = "Mean") +
@@ -404,7 +385,6 @@ ggplot() +
 ggplot() +
   gg(data = topo_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Topographic wetness index", x = "", y = "", fill = "Mean") +
@@ -412,7 +392,6 @@ ggplot() +
 ggplot() +
   gg(data = setts_df, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) +
-  # geom_sf(data = badgers_all, alpha = 0.5, size = 0.1) +
   theme_bw() +
   scale_fill_distiller(palette = 'RdBu', limit = limit) +
   labs(title = "Sett relative density", x = "", y = "", fill = "Mean") +
@@ -690,7 +669,6 @@ multiplot(
   eval.slope,
   eval.grasslandsPastures,
   eval.hfi,
-  # eval.topo,
   eval.forestDist,
   eval.sett,
   eval.cull,

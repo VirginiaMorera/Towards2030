@@ -3,7 +3,6 @@ rm(list = ls())
 source("Scripts/setup.R")
 
 bru_options_set(bru_verbose = TRUE,
-#                 control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE),
                 control.inla = list(int.strategy="auto"))
 
 # Preparation of data ####
@@ -44,7 +43,7 @@ int_pointsw <- readRDS("Data/Inla/weighted_int_points4.RDS")
 
 inner_boundary <- st_as_sf(readRDS("Data/Inla/inner_boundary.RDS"))
 
-## create different integration points dfs ####
+## create df for prediction ####
 df2 <- fm_pixels(mesh,
                 dims = c(72*10, 81*10),
                 mask = inner_boundary,
@@ -158,17 +157,11 @@ matern2D_big <- inla.spde2.pcmatern(mesh,
 
 nonlinear_SPDE <- geometry ~  Intercept(1)  +
   Eff.elevation(elevation, model = matern1D_elev) +
-  # Eff.elevation(elevation, model = "rw2", mapper = mapper_elev) +
   Eff.slope(slope, model = matern1D_slope) +
-  # Eff.slope(slope, model = "rw2", mapper = mapper_slope) +
   Eff.grassPast(grasslandsPastures, model = matern1D_grassPast) +
-  # Eff.grassPast(grasslandsPastures, model = "rw2", mapper = mapper_grassPast) +
   Eff.forestdist(forestDist, model = matern1D_distForests) +
-  # Eff.forestdist(forestDist, model = "rw2", mapper = mapper_distForests) +
   Eff.topo(topo_wetness, model = matern1D_topo) +
-  # Eff.topo(topo_wetness, model = "rw2", mapper = mapper_topo) +
   Eff.hfi(human_footprint, model = matern1D_hfi) +
-  # Eff.hfi(human_footprint, model = "rw2", mapper = mapper_hfi) +
   Eff.smooth_big(geometry, model = matern2D_big) +
   NULL
 
@@ -248,7 +241,6 @@ x <- lp4$all[!inside,]
 ggplot() + 
   gg(data = x, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1, col = "white") +
   labs(x = "", y = "", fill = "Median", 
        title = "Main sett distribution (linear scale)") +  
   theme_bw() + 
@@ -258,7 +250,6 @@ ggplot() +
 ggplot() + 
   gg(data = x, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA) + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "95% CI", 
        title = "Main sett distribution uncertainty") +  
   theme_bw() + 
@@ -288,7 +279,6 @@ y <- rp4$all[!inside,]
 ggplot() + 
   gg(data = y, aes(fill = q0.5), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "Median", 
        title = "Main sett distribution (response scale)") +  
   theme_bw() + 
@@ -298,7 +288,6 @@ ggplot() +
 ggplot() + 
   gg(data = y, aes(fill = q0.975 - q0.025), geom = "tile") +
   geom_sf(data = ireland_counties, fill = NA, col = "white") + 
-  # geom_sf(data = sett_subset, alpha = 0.5, size = 1) +
   labs(x = "", y = "", fill = "Median", 
        title = "Main sett distribution (response scale)") +  
   theme_bw() + 
