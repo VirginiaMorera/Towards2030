@@ -3,12 +3,16 @@ rm(list = ls())
 source("Scripts/setup.R")
 
 # load data ####
+
+## Culling capture events ####
 cap <- read_excel("Data/Raw/TBL_CAPTURE_EVENTS_2025.xlsx") # culling capture events
 culling_cap <- cap %>% 
   select(CAPTURE_BLOCK_EVENT, DATE_COMMENCED) 
 
+## Sett registry ####
 sett_all <- readRDS("Data/sett_all_2025.RDS")
 
+## sett visit history ####
 his1 <- read_excel(path = "Data/Raw/tbl_sett_record_history1.xlsx") 
 
 his2 <- read_excel(path = "Data/Raw/tbl_sett_record_history2.xlsx", 
@@ -24,18 +28,21 @@ his1 <- his1 %>%
 
 sett_history <- bind_rows(his1, his2, his3)
 
-
+## Ireland maps ####
 ireland_outline_sf <- readRDS("Data/Inla/ireland_outline_km.RDS")
 ireland_counties <- read_sf("Data/Other/Ireland_ITM.shp")
 
+## Vaccination capture events ####
 vac_cap <- read_excel("Data/Raw/TBL_VACCINE_2025.xlsx") # vaccine capture data
+
+## vaccination badgers ####
 badgers_all <- read_excel("Data/Raw/tbl_vacc_badgers_2023.xlsx")
 
+## quartiles ####
 quart <- read_sf("Data/Raw/just_quartiles.shp") %>% 
   rename(QUARTILE = Q) %>% 
   st_set_crs(29902) %>% 
   st_transform(st_crs(sett_all))
-
 
 # Culling effort ####
 
@@ -98,12 +105,11 @@ effort_with_dates <- bind_rows(vacc_capture_block_events, culling_capture_block_
   arrange(CAPTURE_BLOCK_EVENT) %>% 
   filter(SETT_ID %!in% c("BLANK", "2")) 
 
-saveRDS(effort_with_dates, "Data/Raw/sett_history_with_dates-RDS")  
+saveRDS(effort_with_dates, "Data/Raw/sett_history_with_dates.RDS")  
 
 effort_with_dates <- effort_with_dates %>% 
   select(-SETT_ID) %>% 
   distinct()
-
 
 
 # Effort per quartile ####
@@ -132,7 +138,7 @@ ggplot() +
   theme_bw() + 
   labs(title = "All effort") + 
   
-  ggplot() + 
+ggplot() + 
   geom_sf(data = effort_2019_sf, aes(fill = NDAYS), col = NA) + 
   scale_fill_viridis_c(na.value = NA) + 
   geom_sf(data = ireland_counties, fill = NA, col = "black") + 
@@ -171,10 +177,11 @@ ggplot() +
        fill = "N days (log)", 
        col = "N days (log)")
 
+# Save as samplers for the int points ####
 saveRDS(effort_2019_sf, file = "Data/Inla/weightedSampler.RDS")
 saveRDS(all_effort_final_log, file = "Data/Inla/log_weightedSampler.RDS")
 
-all_effort_final <- readRDS("Data/Inla/weightedSampler.RDS")
+# Plot ####
 
 ggplot() + 
   geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
@@ -183,6 +190,18 @@ ggplot() +
   scale_fill_viridis_c(na.value = NA) + 
   scale_color_viridis_c(na.value = NA) + 
   theme_bw() + 
-  labs(title = "Sampling effort of culling and vaccination programmes combined", 
+  labs(title = "Sampling effort ", 
+       fill = "N days", 
+       col = "N days") + 
+  
+ggplot() + 
+  geom_sf(data = ireland_outline_sf, fill = "lightgray", col = "black") + 
+  geom_sf(data = all_effort_final_log, aes(fill = WEIGHT, col = WEIGHT)) + 
+  scale_fill_viridis_c(na.value = NA) + 
+  scale_color_viridis_c(na.value = NA) + 
+  geom_sf(data = ireland_counties, fill = NA, col = "black") + 
+  theme_bw() + 
+  labs(title = "Log of sampling effort ", 
        fill = "N days", 
        col = "N days") 
+
