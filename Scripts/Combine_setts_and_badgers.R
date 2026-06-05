@@ -1,3 +1,4 @@
+# Housekeeping ####
 rm(list = ls())
 source("Scripts/setup.R")
 
@@ -5,7 +6,6 @@ source("Scripts/setup.R")
 
 sett_all <- readRDS("Data/sett_all_2025.RDS")
 badgers_all <- readRDS("Data/badgers_all_2025.RDS")
-# IEC_data <- readRDS("Data/IEC_data_2016-2022.RDS")
 ireland <- st_read("Data/Other/ireland_ITM.shp")
 
 # Merge badger and sett data ####
@@ -26,14 +26,12 @@ all_data <- badgers_all %>%
 # we've lost 1,115 badgers here, which were assigned to a sett that doesn't 
 # appear on the sett register
 
-saveRDS(all_data, file = "Data/culled_both_programmes.RDS")  
+saveRDS(all_data, file = "Data/badgers_setts_2025.RDS")  
+# all_data <- readRDS(file = "Data/badgers_setts_2025.RDS")  
 
 # Display badgerXsett data ####
 
-# How many capture events per sett
-
-all_data <- readRDS(file = "Data/badgers_setts_2025.RDS")  
-
+## Capture events per sett ####
 
 all_data %>% 
   group_by(SETT_ID) %>% 
@@ -43,7 +41,7 @@ all_data %>%
   theme_bw() + 
   labs(x = "Number of capture events per sett", y = "Number of setts")
 
-# map capture events per sett and year spatially
+## capture events per sett and year spatially ####
 all_data %>% 
   group_by(SETT_ID, YEAR) %>% 
   summarise(n_capture_events = n_distinct(CAPTURE_BLOCK_EVENT), 
@@ -65,7 +63,7 @@ all_data %>%
 ggsave(file = "Outputs/capture_events_sett_year.png", scale = 2)
 
 
-# map capture events per sett spatially
+## capture events per sett spatially ####
 all_data %>% 
   group_by(SETT_ID) %>% 
   summarise(n_capture_events = n_distinct(CAPTURE_BLOCK_EVENT), 
@@ -83,9 +81,11 @@ all_data %>%
   theme_bw() + 
   ggtitle("N capture events for setts checked more than once")
 
+
 # Jitter badger locations to model them as lgcp ####
 sampler <- readRDS("Data/Inla/weightedSampler.RDS")
 
+# masking to areas with non-zero effort otherwise the model will freak out 
 sampler <- sampler %>% 
   filter(NDAYS > 0) %>% 
   st_buffer(0)
@@ -107,8 +107,9 @@ ggplot(filtered) +
 
 saveRDS(filtered, "Data/badgers_jittered_filtered_2025.RDS")
 
-badgers_jit <- readRDS("Data/badgers_jittered_filtered_2025.RDS")
+# badgers_jit <- readRDS("Data/badgers_jittered_filtered_2025.RDS")
 
+# Thin with spThin to avoid excessive clustering ####
 badgers_2 <- badgers_jit %>% 
   st_transform(4326) %>% 
   mutate(Lon = st_coordinates(.)[,1], 
@@ -144,12 +145,6 @@ saveRDS(badgers_thin, file = "Data/badgers_thin.RDS")
 
 # Summarise data by sett to model as Poison count data ####
 
-p <- function(v) {
-  Reduce(f=paste, x = v)
-}
-
-
-
 all_data_sum <- all_data %>% 
   st_set_geometry(NULL) %>% 
   mutate(YEAR = as.numeric(levels(YEAR))[YEAR]) %>% 
@@ -161,16 +156,10 @@ all_data_sum <- all_data %>%
     effort = n(), 
     badgers = p(as.character(n_badgers)))
   
-# filter setts outside of the effort ####
-effort <- readRDS("Data/Inla/weightedSampler.RDS") %>% 
-  filter(NDAYS > 0)
-
-setts_in = st_filter(sett_all, effort, .pred = st_intersects)
-saveRDS(setts_in, file = "Data/sett_2025_inside_effort.RDS")
 
 # Divide into vaccination and culling badgers to try and model separately ####
 
-all_data <- readRDS(file = "Data/badgers_setts.RDS")
+all_data <- readRDS(file = "Data/badgers_setts_2025.RDS")
 
 ## culling ####
 badgers_cull <- all_data %>% 
@@ -239,28 +228,28 @@ ggplot(vac_filtered) +
 saveRDS(vac_filtered, "Data/vaccination_badgers_jittered_filtered.RDS")
 
 
-## revert back to samplers without effort
-
-sett_all <- readRDS("Data/sett_new_data.RDS")
-samplers <- readRDS("Data/Inla/samplers.RDS")
-
-
-ggplot() + 
-  geom_sf(data = ireland_counties, fill = "orange") + 
-  geom_sf(data = samplers) + 
-  geom_sf(data = sett_all, size = 0.5, alpha = 0.5) + 
-  theme_bw()
-
 # Culling history ####
-all_data <- readRDS("Data/culled_both_programmes.RDS")  
+
+# we need this as a covariate for the badger model 
+
+## Load culled badgers data ####
+cull_data <- readRDS("Data/culled_both_programmes.RDS")  
+
+## Load env vars for raster template ####
 env_vars <- terra::rast("Data/Covars/final_covars_terra_with_setts.grd")
 
-all_data_sub <- st_transform(all_data, st_crs(env_vars))  %>% 
+## Filter captures 5 years before model data ####
+cull_data_sub <- st_transform(cull_data, st_crs(env_vars))  %>% 
   mutate(YEAR = as.numeric(as.character(YEAR))) %>% 
   filter(YEAR < 2019 & YEAR > 2014)
 
+## obtain kernel distr ####
+
+# this function is sourced from the setup script as the original from the package
+# had an error that I manually fixed 
+
 cull_kde <- sf.kde.new(
-  all_data_sub,
+  cull_data_sub,
   bw = 30,
   ref = env_vars$elevation,
   # res = res(env_vars$elevation),
@@ -275,6 +264,7 @@ ggplot() +
   # geom_sf(data= all_data_sub, size = 0.5) + 
   theme_bw()
 
+## mask kernel to ROI only ####
 ROI <- ireland %>% 
   filter(NAME_TAG %!in% c("Antrim", "Armagh", "Down", "Fermanagh", 
                           "Londonderry", "Tyrone")) 
