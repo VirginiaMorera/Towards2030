@@ -1,3 +1,5 @@
+# packages needed ####
+
 library(tidyverse)
 library(sf)
 library(lubridate)
@@ -16,7 +18,6 @@ library(rcartocolor)
 library(scales)
 library(ggthemes)
 library(fmesher)
-library(patternogram)
 library(usdm)
 library(patchwork)
 library(tidyterra)
@@ -26,14 +27,21 @@ library(rgl)
 library(gstat)
 library(gratia)
 
+# ITM in km ####
+projKM <- "+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=0.99982 +x_0=600000 +y_0=750000
+           +ellps=GRS80 +units=km +no_defs"
+
+
+# Function to get mode ####
 getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
+# Function for "not in" ####
 `%!in%` <- Negate(`%in%`)
 
-
+# Turn list of rasters into a stack ####
 list_to_stack <- function(raster_list, new_res, dest_crs = CRS("+proj=longlat"), turn_0_to_NA = FALSE) {
   require(raster)
   if(turn_0_to_NA == TRUE) {
@@ -62,11 +70,10 @@ list_to_stack <- function(raster_list, new_res, dest_crs = CRS("+proj=longlat"),
   return(res_stack)
 }
 
-projKM <- "+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=0.99982 +x_0=600000 +y_0=750000
-           +ellps=GRS80 +units=km +no_defs"
-
+# Function to scale raster btw 0 and 1 ####
 scale01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
+# Fixed function from spatialEco package ####
 sf.kde.new <- function (x, y = NULL, bw = NULL, ref = NULL, res = NULL, standardize = FALSE, 
                         scale.factor = 10000, mask = FALSE) 
 {
@@ -167,3 +174,7 @@ sf.kde.new <- function (x, y = NULL, bw = NULL, ref = NULL, res = NULL, standard
   return(kde.est)
 }
 
+# Function to concatenate within a summarise ####
+p <- function(v) {
+  Reduce(f=paste, x = v)
+}
