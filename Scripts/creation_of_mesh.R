@@ -5,7 +5,7 @@ source("Scripts/setup.R")
 
 ## Load map of ireland and point data ####
 ireland <- st_read("Data/Other/ireland_ITM.shp")
-sett_all <- readRDS("Data/sett_all_2023.RDS")
+sett_all <- readRDS("Data/sett_all_2025.RDS")
 ireland %<>% st_transform(crs = projKM)
 sett_all %<>% st_transform(crs = projKM)
 
